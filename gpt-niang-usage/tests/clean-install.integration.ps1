@@ -28,7 +28,10 @@ function Run-TestInstaller([string]$Script){
   $null=$process.Start();$out=$process.StandardOutput.ReadToEndAsync();$err=$process.StandardError.ReadToEndAsync()
   if(!$process.WaitForExit(60000)){$process.Kill();throw 'Isolated installer timed out; local test files retained until cleanup.'}
   # Raw output includes private temporary paths. Report only the exit code.
-  if($process.ExitCode-ne 0){throw ('Isolated installer failed with exit code '+$process.ExitCode)}
+  if($process.ExitCode-ne 0){
+    $detail=if($err.Wait(2000)){$err.Result.Replace($testRoot,'[isolated-test]').Replace($env:USERPROFILE,'[profile]')}else{'Output unavailable.'}
+    throw ('Isolated installer failed with exit code '+$process.ExitCode+': '+$detail)
+  }
   Assert ($out.Wait(2000) -and $err.Wait(2000)) 'installer output drained'
 }
 function Wait-TestHealth {
@@ -53,8 +56,9 @@ try{
   foreach($entry in $manifest.PSObject.Properties){
     $path=[IO.Path]::GetFullPath((Join-Path $root $entry.Name))
     if(!$path.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Manifest escapes extracted package.'}
-    Assert ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash-eq $entry.Value) ('archive hash: '+$entry.Name)
+    if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash-ne $entry.Value){throw ('Archive hash mismatch: '+$entry.Name)}
   }
+  Assert $true 'all committed archive file hashes match'
   Assert (!(Test-Path -LiteralPath (Join-Path $app 'installation.json'))) 'no machine installation config in archive'
   Assert (!(Test-Path -LiteralPath (Join-Path $codexHome 'auth.json'))) 'isolated Codex home has no copied credentials'
   # Only environment bindings are instrumented. Installer and verification logic are unchanged.
@@ -75,7 +79,7 @@ public static class CleanInstallNative {
 }
 '@
   Write-WidgetSupervisorJson (Join-Path $data 'settings.json') @{followHost=$false}
-  $installedVersion=(Get-Content -LiteralPath (Join-Path $app 'package.json') -Raw|ConvertFrom-Json).version
+  $installedVersion=(Get-Content -LiteralPath (Join-Path $app 'package.json') -Raw -Encoding UTF8|ConvertFrom-Json).version
   Run-TestInstaller (Join-Path $app 'Install.ps1')
   $config=Read-WidgetUpdateJson (Join-Path $app 'installation.json')
   Assert ($config.dataDir-eq (Resolve-WidgetPhysicalPath $data) -and $config.updateAgent-eq (Resolve-WidgetPhysicalPath $agent)) 'installation state and agent are isolated'
@@ -93,13 +97,16 @@ public static class CleanInstallNative {
   Run-TestInstaller (Join-Path $app 'Uninstall.ps1')
   Assert (!(Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue)) 'uninstall removes test task'
   Assert (!(Test-Path -LiteralPath $config.startupShortcut)) 'uninstall removes test shortcut'
-  Assert (!(Get-WidgetSupervisorRunningGui $data $app)) 'uninstall stops isolated widget'
+  $expectedWidget='"'+(Join-Path $app 'widget.ps1')+'"'
+  $remaining=@(Get-CimInstance Win32_Process -Filter "Name='powershell.exe'"|Where-Object{$_.CommandLine -and $_.CommandLine.IndexOf($expectedWidget,[StringComparison]::OrdinalIgnoreCase)-ge 0})
+  Assert ($remaining.Count-eq 0) 'uninstall stops isolated widget'
+  Assert (!(Test-Path -LiteralPath (Join-Path $codexHome 'auth.json'))) 'test used no saved account credentials'
   Write-Output 'PASS clean archive installation, repair, live startup and uninstall (no account/quota validation)'
 }finally{
   foreach($process in $children){try{if(!$process.HasExited){$process.Kill();$null=$process.WaitForExit(2000)}}finally{$process.Dispose()}}
   $task=Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
   if($task){
-    if($task.Actions[0].Arguments-ine ('"'+(Join-Path $agent 'agent-supervisor.vbs')+'"') -or (Resolve-WidgetSupervisorSid $task.Principal.UserId)-ne $sid){throw 'Refusing cleanup of a foreign task.'}
+    if($task.Actions[0].Arguments-ine ('"'+(Join-Path $agent 'agent-supervisor.vbs')+'"') -or [IO.Path]::GetFullPath($task.Actions[0].Execute)-ine (Join-Path $env:WINDIR 'System32\wscript.exe') -or (Resolve-WidgetSupervisorSid $task.Principal.UserId)-ne $sid){throw 'Refusing cleanup of a foreign task.'}
     Stop-ScheduledTask -TaskName $taskName
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
   }

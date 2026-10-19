@@ -41,3 +41,6 @@ Thumbs.db
 # Local Python verification caches
 **/__pycache__/
 *.pyc
+
+# Local-only installer verification summary
+**/installation-verification.json
