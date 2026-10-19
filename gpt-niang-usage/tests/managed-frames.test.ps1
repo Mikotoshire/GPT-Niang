@@ -9,9 +9,12 @@ using System.Windows.Media;
 public sealed class FrameInputProbe : IDisposable {
   public long Count; public TimeSpan First,Last=TimeSpan.MinValue;
   readonly System.Collections.Generic.Dictionary<long,bool> seen=new System.Collections.Generic.Dictionary<long,bool>();
+  readonly Func<bool> active;
   public double Fps {get {return Count>1?(Count-1)/(Last-First).TotalSeconds:0;}}
-  public FrameInputProbe(){CompositionTarget.Rendering+=Observe;}
+  public FrameInputProbe():this(null){}
+  public FrameInputProbe(Func<bool> active){this.active=active;CompositionTarget.Rendering+=Observe;}
   void Observe(object sender,EventArgs args){
+    if(active!=null && !active())return;
     var frame=args as RenderingEventArgs;if(frame==null || seen.ContainsKey(frame.RenderingTime.Ticks))return;
     var time=frame.RenderingTime;seen.Add(time.Ticks,true);
     if(Count++==0)First=Last=time;
@@ -99,14 +102,27 @@ try{
   $script:gravityTimer.Stop()
   if($script:gravityTimer.FrameCount-lt 88 -or $script:gravityTimer.FrameCount-gt 92){throw 'The limiter lost its sustained 90-Hz budget'}
   Write-Output 'PASS: 240-Hz synthetic input remains capped by the sustained 90-Hz budget'
+  $activity=[Delegate]::CreateDelegate([Func[bool]],$script:gravityTimer,'get_CanObserveFrame')
+  $gatedProbe=[FrameInputProbe]::new($activity)
+  $gatedObserve=$gatedProbe.GetType().GetMethod('Observe',$probeFlags)
+  $null=$gatedObserve.Invoke($gatedProbe,@($null,$event))
+  if($gatedProbe.Count-ne 0){throw 'Inactive frames entered the probe sample'}
+  $script:gravityTimer.Start();$arrivalClock.Stop()
+  $null=$gatedObserve.Invoke($gatedProbe,@($null,$event))
+  $script:gravityTimer.Stop()
+  if($gatedProbe.Count-ne 1){throw 'Active frames were not measured by the probe'}
+  $gatedProbe.Dispose()
   $script:gravity.SetHorizontalPosition(300);$script:gravity.FlingFrom(600,100,0)
   $script:notifications=0;$script:gravityTimer.Add_Tick({$script:notifications++})
   # A background-priority deadline can starve behind Rendering on a software GPU.
   $pump=[Windows.Threading.DispatcherFrame]::new();$finish=[Windows.Threading.DispatcherTimer]::new([Windows.Threading.DispatcherPriority]::Send)
   $finish.Tag=$pump;$finish.Interval=[TimeSpan]::FromSeconds(2)
   $finish.Add_Tick({param($sender,$event)$sender.Stop();$sender.Tag.Continue=$false})
+  # C# delegate only: no PowerShell callback on each rendering event. Attach
+  # before Start, but observe only the loop's enabled, non-reentrant interval.
+  $isActive=[Delegate]::CreateDelegate([Func[bool]],$script:gravityTimer,'get_CanObserveFrame')
+  $probe=[FrameInputProbe]::new($isActive)
   Start-WidgetGravityTimer
-  $probe=[FrameInputProbe]::new()
   $finish.Start();[Windows.Threading.Dispatcher]::PushFrame($pump)
   $loop=$script:gravityTimer;$loop.Stop()
   $probe.Dispose()

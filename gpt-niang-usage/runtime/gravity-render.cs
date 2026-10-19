@@ -29,6 +29,9 @@ public sealed class GptGravityRenderLoop {
     [DllImport("kernel32.dll")] static extern IntPtr GetCurrentThread();
     [DllImport("kernel32.dll")] static extern bool GetThreadTimes(IntPtr thread,out long created,out long exited,out long kernel,out long user);
     public bool IsEnabled { get; private set; }
+    // A presentation observer must use the same active window and ignore nested
+    // layout callbacks while the outer frame is still being processed.
+    public bool CanObserveFrame { get { return IsEnabled && !rendering; } }
     public GptGravityScene Scene { get; set; }
     public event EventHandler Tick;
     public int TargetFps { get { return 90; } }
