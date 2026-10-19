@@ -26,3 +26,11 @@ Thumbs.db
 **/gui.lock
 **/worker-ownership.lock
 **/worker.log
+
+# Public fork: keep private account and runtime files local.
+**/auth.json
+**/credentials*
+**/sessions/
+**/quota*.json
+**/update-preferences.json
+*.bundle

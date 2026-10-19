@@ -141,7 +141,7 @@ function Initialize-WidgetSettingsMenu {
   Add-SettingsPanel $size.Panel
   $script:settingsMenuUi.Hide=Add-SettingsAction '隐藏设置按钮' {param($sender,$event)$script:hideMenu=$sender.IsChecked;Set-MenuVisible $false;Save-Settings} -Description '仍可右键点角色打开设置' -Checkable -ReturnItem
   } -ReturnItem
-  $script:settingsMenuUi.Gravity=Add-SettingsAction '重力模式' {param($sender,$event)Set-WidgetGravityMode ([bool]$sender.IsChecked)} -Description '单击轻跳，长按蓄力，拖起后自由落下' -Checkable -ReturnItem
+  $script:settingsMenuUi.Gravity=Add-SettingsAction '重力模式' {param($sender,$event)Set-WidgetGravityMode ([bool]$sender.IsChecked)} -Description '单击轻跳，长按蓄力，拖动甩出带惯性' -Checkable -ReturnItem
   $script:settingsMenuUi.Colors=Add-SettingsSubmenu '配色效果' {
   $script:settingsMenuUi.ColorMixed=Add-SettingsAction '台词与颜色独立随机' {Set-WidgetColorMode 'mixed';Save-Settings;Update-WidgetSettingsMenu} -Description '先抽台词，再抽变色；每句都能触发' -Checkable -ReturnItem
   $script:settingsMenuUi.ColorOriginal=Add-SettingsAction '保持原色' {Set-WidgetColorMode 'original';Save-Settings;Update-WidgetSettingsMenu} -Checkable -ReturnItem

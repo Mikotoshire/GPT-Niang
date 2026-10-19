@@ -607,6 +607,7 @@ $script:context.Add_Closed({$script:menuTimer.Start()})
 foreach($control in @($script:ui.Bubble,$script:ui.Tail,$script:ui.TailNear)){$control.Add_MouseLeftButtonUp({param($sender,$event)Next-Bubble;$event.Handled=$true})}
 $pressDown={param($sender,$event)
   $script:hostFollower.Suspend()
+  $script:gravityInertia=$false
   $cursor=New-Object GptWidgetNative+Point;[GptWidgetNative]::GetCursorPos([ref]$cursor)|Out-Null
   $rect=New-Object GptWidgetNative+Rect;[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
   $script:drag=@{x=$cursor.X;y=$cursor.Y;left=$rect.Left;top=$rect.Top;moved=$false;control=$sender}
@@ -631,6 +632,7 @@ $pressMove={param($sender,$event)
   $y=[int][Math]::Max($frame.Top,[Math]::Min($frame.Bottom-$h+$floorPadding,$script:drag.top+$dy))
   [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,$x,$y,0,0,0x15)|Out-Null
   $script:lastPosition=$null
+  if($script:gravityEnabled){Add-WidgetGravitySample}
   if($script:followHost){
     $script:offsetRight=($frame.Right-$x-$w)/$dpi;$script:offsetBottom=($frame.Bottom-$y-$h)/$dpi
     $script:offsetLeft=($x-$frame.Left)/$dpi;$script:anchor='free'
@@ -643,8 +645,8 @@ $pressUp={param($sender,$event)
   if($script:gravityEnabled -and $moved){Release-WidgetGravityDrop}else{Animate-Press $false}
   Play-WidgetReleaseSound
   if(!$moved){Click-Character}
-  elseif($script:followHost -and $script:offsetLeft-le 18){$script:anchor='left';$script:offsetLeft=0;$script:side='left';Set-Facing}
-  elseif($script:followHost -and $script:offsetRight-le 18){$script:anchor='right';$script:offsetRight=0;$script:side='right';Set-Facing}
+  elseif(!$script:gravityEnabled -and $script:followHost -and $script:offsetLeft-le 18){$script:anchor='left';$script:offsetLeft=0;$script:side='left';Set-Facing}
+  elseif(!$script:gravityEnabled -and $script:followHost -and $script:offsetRight-le 18){$script:anchor='right';$script:offsetRight=0;$script:side='right';Set-Facing}
   Save-Settings;$script:hostEventTimer.Start();$event.Handled=$true
 }
 $script:ui.Girl.Add_MouseLeftButtonDown($pressDown);$script:ui.Girl.Add_MouseMove($pressMove);$script:ui.Girl.Add_MouseLeftButtonUp($pressUp)

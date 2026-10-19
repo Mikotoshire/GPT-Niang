@@ -1,6 +1,10 @@
 using System;
+using nkast.Aether.Physics2D.Common;
+using nkast.Aether.Physics2D.Dynamics;
+using nkast.Aether.Physics2D.Dynamics.Contacts;
+using nkast.Aether.Physics2D.Collision;
 
-// Pure physics, in design-space DIP and seconds. No WPF, HWND, clock or files.
+// Interaction policy in design DIP. Aether owns integration, contacts and friction.
 public sealed class GptGravityModel {
     public const double Gravity = 1800.0;
     public const double TapHeight = 24.0;
@@ -18,17 +22,58 @@ public sealed class GptGravityModel {
     public bool ReleasePending { get; private set; }
     public bool Dragging { get; private set; }
     public bool Active { get { return IsPressed || ReleasePending || flying || impact > 0; } }
+    const double Units = 100, FixedStep = 1.0 / 240;
+    World world;
+    Body body, bounds;
+    Fixture floor;
+    bool floorContact, stopLanding;
+    double accumulator, ceilingLimit = -1, widthLimit = -1;
+    public double HorizontalPosition { get; private set; }
+    public double HorizontalVelocity { get { return body == null ? 0 : body.LinearVelocity.X * Units; } }
+    public void SetHorizontalPosition(double x) {
+        HorizontalPosition = Math.Max(0, x);
+        body.Position = new Vector2((float)(HorizontalPosition / Units), body.Position.Y);
+    }
+    void CreateWorld() {
+        bounds = null; floor = null; world = new World(new Vector2(0, (float)(-Gravity / Units)));
+        body = world.CreateBody(Vector2.Zero, 0, BodyType.Dynamic);
+        body.CreateCircle(0.25f, 1).Friction = 0.65f;
+        body.FixedRotation = true; body.IsBullet = true;
+        world.ContactManager.PreSolve += OnContact;
+        ceilingLimit = widthLimit = -1;
+    }
+    void OnContact(Contact contact, ref Manifold manifold) {
+        if (contact.FixtureA == floor || contact.FixtureB == floor) {
+            floorContact = body.LinearVelocity.Y <= 0;
+            stopLanding = !multiple || PeakHeight <= TapHeight + 0.5;
+            contact.Restitution = stopLanding ? 0 : (float)Restitution;
+            contact.Friction = 0.65f;
+        } else { contact.Restitution = 0.64f; contact.Friction = 0; }
+    }
+    void SetBounds(double ceiling, double width) {
+        if (ceiling == ceilingLimit && width == widthLimit) return;
+        if (bounds != null) world.Remove(bounds);
+        bounds = world.CreateBody(Vector2.Zero, 0, BodyType.Static);
+        float right = (float)(width / Units), top = (float)(ceiling / Units);
+        floor = bounds.CreateEdge(new Vector2(-1,-0.25f), new Vector2(right+1,-0.25f));
+        bounds.CreateEdge(new Vector2(-0.25f,-1),new Vector2(-0.25f,top+1));
+        bounds.CreateEdge(new Vector2(right+0.25f,-1),new Vector2(right+0.25f,top+1));
+        bounds.CreateEdge(new Vector2(-1,top+0.25f),new Vector2(right+1,top+0.25f));
+        ceilingLimit=ceiling; widthLimit=width;
+    }
     double age, held, impact, relax, releasedX, releasedY;
     bool flying, multiple;
 
     public GptGravityModel() { Reset(); }
     public void Reset() {
+        CreateWorld(); accumulator = 0;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
         ScaleX = ScaleY = 1; Rebounds = 0;
         IsPressed = ReleasePending = Dragging = flying = multiple = false;
     }
     public void BeginPress() {
         IsPressed = true; ReleasePending = Dragging = flying = multiple = false;
+        body.LinearVelocity = Vector2.Zero;
         Velocity = age = held = Charge = impact = relax = 0; Rebounds = 0; UpdatePose();
     }
     public void ReleasePress() {
@@ -38,12 +83,22 @@ public sealed class GptGravityModel {
     }
     public void BeginDrag() {
         IsPressed = ReleasePending = flying = false; Dragging = true;
+        body.LinearVelocity = Vector2.Zero;
         Velocity = Charge = held = age = impact = relax = 0; ScaleX = ScaleY = 1;
     }
     public void DragTo(double height) { Height = Math.Max(0, height); }
     public void DropFrom(double height) {
-        Reset(); Height = PeakHeight = Math.Max(0, height);
-        multiple = true; flying = Height > 0;
+        FlingFrom(height, 0, 0);
+    }
+    public void FlingFrom(double height, double vx, double vy) {
+        double x = HorizontalPosition;
+        Reset(); SetHorizontalPosition(x); Height = Math.Max(0, height);
+        vx = Math.Max(-1600, Math.Min(1600, vx));
+        vy = Math.Max(-1600, Math.Min(1600, vy));
+        body.Position = new Vector2((float)(x/Units), (float)(Height/Units));
+        body.LinearVelocity = new Vector2((float)(vx/Units),(float)(vy/Units));
+        Velocity = vy; PeakHeight = Height + Math.Max(0,vy)*Math.Max(0,vy)/(2*Gravity);
+        multiple = true; flying = Height > 0 || vx != 0 || vy != 0;
     }
     public void CancelPress() { DropFrom(Height); }
     void Launch() {
@@ -51,19 +106,26 @@ public sealed class GptGravityModel {
         Charge = Math.Max(0, Math.Min(1, (held - CompressionSeconds) / ChargeSeconds));
         double jump = TapHeight + 260 * Charge * Charge;
         Velocity = Math.Sqrt(2 * Gravity * jump);
+        body.Position = new Vector2((float)(HorizontalPosition/Units),(float)(Height/Units));
+        body.LinearVelocity = new Vector2(0,(float)((Velocity+Gravity*FixedStep/2)/Units));
         PeakHeight = Height + jump; multiple = Charge > 1e-8;
         flying = true; ReleasePending = false; UpdatePose();
     }
-    public void Advance(double seconds, double maximumHeight) {
+    public void Advance(double seconds, double maximumHeight) { Advance(seconds,maximumHeight,10000); }
+    public void Advance(double seconds, double maximumHeight, double maximumWidth) {
         if (double.IsNaN(seconds) || double.IsInfinity(seconds) || seconds <= 0) return;
         maximumHeight = double.IsNaN(maximumHeight) ? 0 : Math.Max(0, maximumHeight);
         if (maximumHeight <= 0) { Reset(); return; }
         if (Height > maximumHeight) { Height = maximumHeight; Velocity = Math.Min(0, Velocity); }
         PeakHeight = Math.Min(PeakHeight, maximumHeight);
+        maximumWidth = Math.Max(0, maximumWidth);
+        SetBounds(maximumHeight, maximumWidth);
+        body.Position = new Vector2((float)(Math.Min(maximumWidth,HorizontalPosition)/Units),(float)(Height/Units));
         // Pause rather than fast-forward across a hidden/busy UI interval.
-        double remaining = Math.Min(seconds, 0.1);
-        while (remaining > 1e-9) {
-            double dt = Math.Min(remaining, 1.0 / 120);
+        accumulator += Math.Min(seconds, 0.1);
+        double remaining = accumulator;
+        while (remaining >= FixedStep - 1e-9) {
+            double dt = FixedStep;
             if (ReleasePending && age < CompressionSeconds)
                 dt = Math.Min(dt, CompressionSeconds - age);
             remaining -= dt;
@@ -76,33 +138,30 @@ public sealed class GptGravityModel {
                 if (ReleasePending && age >= CompressionSeconds - 1e-9) Launch();
             } else if (flying) AdvanceFlight(dt, maximumHeight);
         }
+        accumulator = remaining;
         UpdatePose();
     }
     void AdvanceFlight(double seconds, double ceiling) {
-        double left = seconds;
-        while (flying && left > 1e-9) {
-            double floorTime = (Velocity + Math.Sqrt(Velocity * Velocity + 2 * Gravity * Height)) / Gravity;
-            double ceilingTime = double.PositiveInfinity;
-            double discriminant = Velocity * Velocity - 2 * Gravity * (ceiling - Height);
-            if (Velocity > 0 && discriminant >= 0)
-                ceilingTime = Math.Max(0, (Velocity - Math.Sqrt(discriminant)) / Gravity);
-            double time = Math.Min(left, Math.Min(floorTime, ceilingTime));
-            Height += Velocity * time - 0.5 * Gravity * time * time;
-            Velocity -= Gravity * time; left -= time;
-            if (ceilingTime <= time + 1e-9) {
-                Height = ceiling; Velocity = 0; PeakHeight = ceiling;
-            } else if (floorTime <= time + 1e-9) {
-                Height = 0; impact = 0.12;
-                // Stop after the small jump has actually landed, not before it occurs.
-                if (!multiple || PeakHeight <= TapHeight + 1e-8) {
-                    Velocity = 0; flying = false;
-                } else {
-                    Velocity = Math.Abs(Velocity) * Restitution;
-                    PeakHeight = Velocity * Velocity / (2 * Gravity); Rebounds++;
-                }
+        double previousVelocity = Velocity;
+        floorContact = false; stopLanding = false;
+        world.Step((float)seconds);
+        Height = Math.Max(0, Math.Min(ceiling, body.Position.Y * Units));
+        HorizontalPosition = Math.Max(0,Math.Min(widthLimit,body.Position.X * Units));
+        Velocity = body.LinearVelocity.Y * Units;
+        if (floorContact && previousVelocity <= 0) {
+            impact = 0.12;
+            if (stopLanding) {
+                Height = Velocity = 0;
+                body.Position = new Vector2(body.Position.X,0);
+                body.LinearVelocity = new Vector2(body.LinearVelocity.X,0);
+            } else if (Velocity > 0) {
+                PeakHeight = Height + Velocity*Velocity/(2*Gravity); Rebounds++;
             }
         }
-        Height = Math.Max(0, Math.Min(ceiling, Height));
+        if (Height < 0.8 && Math.Abs(Velocity) < 2 && Math.Abs(HorizontalVelocity) < 2) {
+            Height = Velocity = 0; body.LinearVelocity = Vector2.Zero;
+            body.Position = new Vector2(body.Position.X,0); flying = false;
+        }
     }
     void UpdatePose() {
         if (IsPressed || ReleasePending) {

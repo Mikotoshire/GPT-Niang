@@ -28,6 +28,7 @@ export function zipFixture(files,{mode=0x8000,compressed=false,expandedOverride}
 }
 function packageFiles(version='1.3.3') {
   const files=Object.fromEntries(required.map(name=>['GPT娘额度挂件/gpt-niang-usage/'+name,'fixture']));
+  files['GPT娘额度挂件/gpt-niang-usage/runtime/vendor/aether/Aether.Physics2D.dll']=fs.readFileSync(new URL('../runtime/vendor/aether/Aether.Physics2D.dll',import.meta.url));
   for(const name of ['package.json','.codex-plugin/plugin.json'])files['GPT娘额度挂件/gpt-niang-usage/'+name]=JSON.stringify({version});
   files['GPT娘额度挂件/gpt-niang-usage/runtime/install-files.json']=JSON.stringify(required);
   files['GPT娘额度挂件/.agents/plugins/marketplace.json']='{}';return files;
@@ -73,6 +74,13 @@ test('ZIP validation rejects traversal, Windows invalid names, links, executable
   assert.throws(()=>inspectZip(zipFixture({'root/A.txt':'a','root/a.txt':'b'})));
   assert.throws(()=>inspectZip(zipFixture({'root/file':'a','root/file/child':'b'})));
   assert.throws(()=>inspectZip(zipFixture({'one/a':'a','two/b':'b'})));
+});
+test('only the pinned physics DLL is permitted, with its exact published bytes',()=>{
+  const name='root/gpt-niang-usage/runtime/vendor/aether/Aether.Physics2D.dll';
+  const binary=fs.readFileSync(new URL('../runtime/vendor/aether/Aether.Physics2D.dll',import.meta.url));
+  assert.equal(inspectZip(zipFixture({[name]:binary})).entries.length,1);
+  assert.throws(()=>inspectZip(zipFixture({[name]:Buffer.from('changed')})),/Physics library hash mismatch/);
+  assert.throws(()=>safeZipName(name.replace('Aether.Physics2D.dll','other.dll')));
 });
 test('ZIP entry limits, decompression limits, CRC and local path checks precede extraction',()=>{
   assert.throws(()=>inspectZip(zipFixture(Object.fromEntries(Array.from({length:1001},(_,i)=>['root/'+i,''])))));

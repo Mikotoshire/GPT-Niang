@@ -130,11 +130,14 @@ function crc32(bytes) {
   let crc=0xffffffff;for(const byte of bytes)crc=crcTable[(crc^byte)&255]^(crc>>>8);
   return (crc^0xffffffff)>>>0;
 }
+const physicsDll = 'runtime/vendor/aether/Aether.Physics2D.dll';
+const physicsHash = '56f511baadef2c521d7de983418813b075b3c2194825c7e17c06b59f267f2a78';
+function isPhysicsDll(name) { return name === physicsDll || name.endsWith('/gpt-niang-usage/' + physicsDll); }
 export function safeZipName(name) {
   if(!name || name.includes('\\') || name.startsWith('/') || /[\x00-\x1f\x7f:<>"|?*]/.test(name))throw new Error('Unsafe ZIP path');
   const pieces=name.replace(/\/$/,'').split('/');
   if(name.length>1024 || pieces.some(part=>!part || part.length>255 || ['.','..','.git'].includes(part.toLowerCase()) || /[. ]$/.test(part) || /^(con|prn|aux|nul|conin\$|conout\$|com[1-9¹²³]|lpt[1-9¹²³])(?:\.|$)/i.test(part)))throw new Error('Illegal Windows ZIP path');
-  if(/\.(exe|dll)$/i.test(name))throw new Error('Unexpected executable in update');
+  if(/\.(exe|dll)$/i.test(name) && !isPhysicsDll(name))throw new Error('Unexpected executable in update');
 }
 
 // Validate the central directory and every local record before writing any file.
@@ -166,6 +169,7 @@ export function inspectZip(bytes) {
     let data;
     try{data=method===0?bytes.subarray(start,finish):inflateRawSync(bytes.subarray(start,finish),{maxOutputLength:Math.max(1,expanded)});}catch{throw new Error('Invalid ZIP compression');}
     if(data.length!==expanded || crc32(data)!==crc || (name.endsWith('/') && expanded!==0))throw new Error('ZIP entry integrity mismatch');
+    if(isPhysicsDll(name) && createHash('sha256').update(data).digest('hex')!==physicsHash)throw new Error('Physics library hash mismatch');
     entries.push({name,data});cursor+=46+length+extra+comment;
   }
   if(cursor!==end)throw new Error('ZIP directory size mismatch');

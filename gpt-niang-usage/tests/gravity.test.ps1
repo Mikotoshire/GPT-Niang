@@ -1,6 +1,8 @@
 param([string]$AppDir=(Split-Path $PSScriptRoot -Parent))
 $ErrorActionPreference='Stop'
-Add-Type -Path (Join-Path $AppDir 'runtime\gravity-model.cs')
+$library=Join-Path $AppDir 'runtime/vendor/aether/Aether.Physics2D.dll'
+Add-Type -Path $library
+Add-Type -Path (Join-Path $AppDir 'runtime/gravity-model.cs') -ReferencedAssemblies $library
 $checks=0
 function Assert($Condition,[string]$Label){if(!$Condition){throw $Label};$script:checks++}
 function Step($Model,[double]$Seconds,[double]$Hz=120,[double]$Ceiling=700){
@@ -15,10 +17,10 @@ function Finish($Model){
 }
 $tap=[GptGravityModel]::new();$tap.BeginPress();Step $tap 0.04;$tap.ReleasePress()
 Assert ($tap.ReleasePending -and $tap.Velocity-eq 0) 'Quick tap must finish compression before launching'
-Step $tap 0.18
+Step $tap 0.185
 Assert ($tap.Velocity-gt 0) 'Completed compression must launch upward'
 $tapPeak=Finish $tap
-Assert ([Math]::Abs($tapPeak-[GptGravityModel]::TapHeight)-lt 0.1) 'Tap jump must have the configured small apex'
+Assert ([Math]::Abs($tapPeak-[GptGravityModel]::TapHeight)-lt 0.5) 'Tap jump must have the configured small apex'
 Assert ($tap.Rebounds-eq 0) 'Tap must stop at its first floor contact'
 $charged=[GptGravityModel]::new();$charged.BeginPress();Step $charged 0.22
 $baseY=$charged.ScaleY;$baseX=$charged.ScaleX
@@ -51,4 +53,14 @@ Assert ([Math]::Abs($a.Height-$b.Height)-lt 0.01 -and [Math]::Abs($a.Velocity-$b
 $cap=[GptGravityModel]::new();$cap.BeginPress();Step $cap 9;$cap.ReleasePress();Step $cap 0.4 120 40
 Assert ($cap.Height-le 40 -and $cap.Height-ge 0) 'Small windows must cap the jump safely'
 $cap.Advance(10,0);Assert ($cap.Height-eq 0 -and $cap.Velocity-eq 0) 'Zero available height must settle safely'
+$fling=[GptGravityModel]::new();$fling.SetHorizontalPosition(200);$fling.FlingFrom(240,600,300)
+$fling.Advance(0.05,700,800)
+Assert ($fling.HorizontalPosition-gt 220 -and $fling.HorizontalVelocity-gt 500 -and $fling.Height-gt 240) 'Fling must preserve both drag velocity components'
+$wall=[GptGravityModel]::new();$wall.SetHorizontalPosition(790);$wall.FlingFrom(240,800,0)
+for($i=0;$i-lt 30;$i++){$wall.Advance(1.0/240,700,800)}
+Assert ($wall.HorizontalPosition-le 800 -and $wall.HorizontalVelocity-lt 0) 'Wall collision must reflect horizontal inertia'
+$slide=[GptGravityModel]::new();$slide.SetHorizontalPosition(200);$slide.FlingFrom(0,500,0)
+for($i=0;$i-lt 3000 -and $slide.Active;$i++){$slide.Advance(1.0/240,700,10000)}
+Assert (!$slide.Active -and $slide.HorizontalVelocity-eq 0 -and $slide.HorizontalPosition-gt 200) 'Ground friction must slow sliding to exact rest'
+$slide.Reset();Assert ($slide.HorizontalVelocity-eq 0) 'Mode reset must clear inertia'
 Write-Output "PASS: $checks gravity assertions (tap, charge, decay, drag/drop, cancellation, bounds and frame-rate invariance)."

@@ -12,7 +12,7 @@ User journeys and implementation details are recorded in `codex.md` and the root
 
 | Target | Result |
 | --- | --- |
-| Node runtime suite (`node --test tests/*.test.mjs`) | 83 passed, 0 failed, 1 macOS-only fixture skipped |
+| Node runtime suite (`node --test tests/*.test.mjs`) | 84 passed, 0 failed, 1 macOS-only fixture skipped |
 | Pure gravity model | PASS |
 | WPF gravity controller | PASS |
 | Existing settings menu, plus top-level gravity toggle | PASS |
@@ -26,3 +26,7 @@ User journeys and implementation details are recorded in `codex.md` and the root
 The render preview uses the real XAML, original bitmap and production model at compressed, airborne, rebounding and settled poses. No image or license asset was changed. Frame-rate, floor and shape bounds are tested separately from visual inspection.
 
 These checks are targeted evidence, not a claim of whole-project coverage or macOS gravity support. Task Scheduler startup on this particular computer remains the previously documented separate limitation.
+
+Aether migration adds explicit tests for two-axis fling, wall restitution, friction to rest and reset. DLL is pinned with source/license/SHA256 in runtime/vendor/aether/NOTICE.md. Physics runs at 240 Hz independent of renderer rate. UI tests exercise the production controller with the actual dependency.
+
+Production HWND tests also verify drag sampling, upward/rightward inertia, actual horizontal movement and rejection of stale drag history. Archive tests accept only the pinned dependency hash and reject substitutions; release updating remains disabled by the personal-fork policy.

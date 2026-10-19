@@ -74,6 +74,24 @@ try {
   if($script:gravityTimer.IsEnabled -or !$script:gravity.Dragging){throw 'Drag must suspend physics until release.'}
   Release-WidgetGravityDrop
   if($script:gravity.Dragging){throw 'Release must leave drag state.'}
+  # Exercise production sampling with a real HWND, preserving physical-to-design units.
+  Begin-WidgetGravityDrag
+  $script:gravitySamples.Clear();$script:gravityGestureClock.Restart()
+  $script:gravitySamples.Add([pscustomobject]@{Time=-0.04;X=450;Y=650})
+  $script:gravitySamples.Add([pscustomobject]@{Time=-0.02;X=470;Y=640})
+  [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,490,630,0,0,0x15)|Out-Null
+  Release-WidgetGravityDrop
+  if($script:gravity.HorizontalVelocity-le 0 -or $script:gravity.Velocity-le 0){throw 'Production drag sampler lost the fling direction.'}
+  $script:gravityClock.Restart();Start-Sleep -Milliseconds 25;Update-WidgetGravity
+  $flung=New-Object GptWidgetNative+Rect
+  [GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$flung)|Out-Null
+  if($flung.Left-le 490){throw 'Controller did not apply horizontal inertia to the real HWND.'}
+  Begin-WidgetGravityDrag;$script:gravitySamples.Clear();$script:gravityGestureClock.Restart()
+  $script:gravitySamples.Add([pscustomobject]@{Time=-0.6;X=300;Y=800})
+  $script:gravitySamples.Add([pscustomobject]@{Time=-0.4;X=490;Y=630})
+  Release-WidgetGravityDrop
+  if($script:gravity.HorizontalVelocity-ne 0 -or $script:gravity.Velocity-ne 0){throw 'Stale pointer history must not create a fling.'}
+  $checks+=2
   $script:followHost=$true;$script:hostHandle=[IntPtr]::Zero
   $script:gravity.BeginPress();Start-WidgetGravityTimer;Update-WidgetGravity
   if($script:gravityTimer.IsEnabled){throw 'Physics must pause when the followed host is unavailable.'}
