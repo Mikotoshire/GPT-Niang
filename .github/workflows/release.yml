@@ -8,6 +8,10 @@ on:
         required: true
         type: boolean
         default: false
+      tested_commit:
+        description: Full source commit tested locally with clean-install.integration.ps1
+        required: false
+        type: string
   pull_request:
     paths:
       - .github/workflows/release.yml
@@ -22,6 +26,13 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
+      - name: Require clean installation acceptance for this exact commit
+        if: github.event_name == 'workflow_dispatch' && inputs.publish
+        shell: powershell
+        env:
+          TESTED_COMMIT: ${{ inputs.tested_commit }}
+        run: |
+          if ($env:TESTED_COMMIT -cne $env:GITHUB_SHA) { throw 'Run the clean ZIP installation acceptance test for this exact commit before publishing.' }
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
@@ -40,6 +51,7 @@ jobs:
           & gpt-niang-usage/tests/floor-contact.test.ps1
           & gpt-niang-usage/tests/horizontal-impact.test.ps1
           & gpt-niang-usage/tests/startup-directory.test.ps1
+          & gpt-niang-usage/tests/plugin-registration.test.ps1
       - name: Build committed and audited Windows bundle
         run: python scripts/build-release.py
   publish:

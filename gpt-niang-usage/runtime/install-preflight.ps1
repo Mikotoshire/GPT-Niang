@@ -56,18 +56,40 @@ function Get-WidgetInstallPreflight {
   foreach($directory in @($appDir,(Split-Path (Split-Path $appDir -Parent) -Parent),$dataDir,$startup,(Get-WidgetUpdateAgentDir))){Test-WidgetWritableDirectory $directory}
   return $config
 }
-function Assert-WidgetPluginRegistration([string]$Codex,[string]$Version) {
+function Assert-WidgetPluginRegistration {
+  param([string]$Codex,[string]$Version,[ValidateRange(100,120000)][int]$TimeoutMilliseconds=30000,[string]$DiagnosticFile)
+  # A global list also queries unrelated remote marketplaces. Verify only our local source.
+  # Maintenance changes are AI-generated and insufficiently validated; see AI-NOTICE.md.
   $processInfo=New-Object System.Diagnostics.ProcessStartInfo
-  $processInfo.FileName=$Codex;$processInfo.Arguments='plugin list --json';$processInfo.UseShellExecute=$false
+  $processInfo.FileName=$Codex;$processInfo.Arguments='plugin list --marketplace gpt-niang-local --json';$processInfo.UseShellExecute=$false
   $processInfo.RedirectStandardOutput=$true;$processInfo.StandardOutputEncoding=[Text.UTF8Encoding]::new($false)
+  $processInfo.RedirectStandardError=$true;$processInfo.StandardErrorEncoding=[Text.UTF8Encoding]::new($false)
   $process=New-Object System.Diagnostics.Process;$process.StartInfo=$processInfo
+  $watch=[Diagnostics.Stopwatch]::StartNew();$status='start-failed';$exitCode=$null;$started=$false
   try{
     if(!$process.Start()){throw 'Cannot start Codex plugin list.'}
+    $started=$true
     $pending=$process.StandardOutput.ReadToEndAsync()
-    if(!$process.WaitForExit(30000)){$process.Kill();throw 'Plugin verification timed out.'}
-    if($process.ExitCode-ne 0){throw 'Cannot verify plugin registration.'}
-    $catalog=$pending.Result|ConvertFrom-Json
-  }finally{$process.Dispose()}
-  $match=@($catalog.installed|Where-Object{$_.pluginId-eq 'gpt-niang-usage@gpt-niang-local' -and $_.version-eq $Version -and $_.installed -and $_.enabled})
-  if($match.Count-ne 1){throw 'Codex did not report one enabled GPT Niang plugin.'}
+    $errors=$process.StandardError.ReadToEndAsync()
+    $status='timeout'
+    if(!$process.WaitForExit($TimeoutMilliseconds)){throw 'Plugin verification failed (timeout). Rerun the installer; local registration will be checked again.'}
+    $exitCode=$process.ExitCode;$status='command-failed'
+    if($exitCode-ne 0){throw 'Plugin verification failed (command-failed). No raw CLI output is recorded.'}
+    $status='output-timeout'
+    if(!$pending.Wait(2000) -or !$errors.Wait(2000)){throw 'Plugin verification failed (output-timeout).'}
+    $status='invalid-json'
+    try{$catalog=$pending.Result|ConvertFrom-Json -ErrorAction Stop}catch{throw 'Plugin verification failed (invalid-json).'}
+    $status='registration-mismatch'
+    $match=@($catalog.installed|Where-Object{$_.pluginId-eq 'gpt-niang-usage@gpt-niang-local' -and $_.version-eq $Version -and $_.installed-eq $true -and $_.enabled-eq $true})
+    if($match.Count-ne 1){throw 'Plugin verification failed (registration-mismatch). Expected one enabled plugin at the requested version.'}
+    $status='verified'
+  }finally{
+    if($started -and !$process.HasExited){$process.Kill();$null=$process.WaitForExit(2000)}
+    $process.Dispose();$watch.Stop()
+    if($DiagnosticFile){
+      # Fixed, overwritten summary only: never persist CLI output, accounts, environment or paths.
+      try{Write-WidgetSupervisorJson $DiagnosticFile @{schema=1;stage='plugin-registration';scope='gpt-niang-local';status=$status;elapsedMs=$watch.ElapsedMilliseconds;exitCode=$exitCode;version=$Version;at=[DateTime]::UtcNow.ToString('o')}}
+      catch{Write-Warning 'Unable to save the installation verification summary.'}
+    }
+  }
 }

@@ -1,6 +1,6 @@
 {
   "name": "gpt-niang-usage",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "private": true,
   "type": "module",
   "description": "AI 生成修改、未经充分验证的 GPT娘 Windows 维护版",

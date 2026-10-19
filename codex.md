@@ -130,3 +130,13 @@ node gpt-niang-usage/runtime/control.mjs diagnostics 100
 ## AI 来源声明（1.4.1）
 
 维护版相对上游的修改与新增/改写文档均由 AI 生成，未经充分验证或独立人工审查。统一声明见 AI-NOTICE.md；显示于主页、插件信息、安装输出、设置菜单和发布说明，并随包分发。构建器拒绝缺少声明的发行包，SOURCE.json 与 RELEASE-AUDIT.json 明确 AI 范围及 insufficiently_validated。旧 Release 说明补充声明，但不覆盖旧标签或附件；1.4.1 提供内置声明的新包。声明不取代测试记录、不改变许可，也不代表上游或第三方库由 AI 生成。
+
+## 本地市场验证与干净包验收（1.4.2）
+
+安装器的全局 `plugin list --json` 会枚举其他市场。改用 CLI 帮助中提供的 `plugin list --marketplace gpt-niang-local --json`，保留严格版本、installed/enabled 与唯一性检查。错误输出并行排空但不持久化；验证进程超时后清理。`installation-verification.json` 仅保留允许字段的最新一次摘要，失败也更新，避免旧成功记录误导排查；记录写入失败发出通用警告。
+
+回归：`powershell.exe -NoProfile -ExecutionPolicy Bypass -File gpt-niang-usage/tests/plugin-registration.test.ps1`。假 CLI 故意让未限定市场的命令等待，用于复现旧版超时；另覆盖错误输出管道、超时清理、非零退出、无效 JSON、禁用、版本不符、重复条目及诊断字段白名单。
+
+发布前先提交并构建：`python scripts/build-release.py`，然后运行 `powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File gpt-niang-usage/tests/clean-install.integration.ps1 -Archive dist/gpt-niang-mikotoshire-v1.4.2-windows.zip`。该脚本验证 ZIP 清单后，只在临时副本改写环境绑定（状态目录、Startup、稳定代理、独立计划任务/互斥量及 CODEX_HOME）；使用真实安装和验证逻辑。实际创建任务和快捷方式、观察新鲜心跳及原生可见窗口、重装、卸载后按所有权清理。不会复制账号；不验证额度。需交互式 Windows 会话和已有 Codex/Node，本机隔离不能替代全新设备测试。
+
+发布工作流的 tested_commit 必须等于实际验收的完整提交号；源码变化后重新构建并验收。此人为确认约束不构成独立审查或测试真实性证明。原版 1.4.1 资产不替换，以保留追溯。

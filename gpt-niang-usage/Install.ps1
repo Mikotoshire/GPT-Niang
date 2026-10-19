@@ -24,7 +24,7 @@ try {
   if($LASTEXITCODE-ne 0){throw 'Codex rejected the local marketplace.'}
   & $config.codexPath plugin add 'gpt-niang-usage@gpt-niang-local' --json
   if($LASTEXITCODE-ne 0){throw 'Codex rejected the GPT Niang plugin.'}
-  Assert-WidgetPluginRegistration $config.codexPath $config.version
+  Assert-WidgetPluginRegistration $config.codexPath $config.version -DiagnosticFile (Join-Path $config.dataDir 'installation-verification.json')
   $link=(New-Object -ComObject WScript.Shell).CreateShortcut($config.startupShortcut)
   $link.TargetPath=Join-Path $env:WINDIR 'System32\wscript.exe'
   $link.Arguments='"'+(Join-Path $config.updateAgent 'agent-launch.vbs')+'"'
