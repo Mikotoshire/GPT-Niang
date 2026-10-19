@@ -102,7 +102,7 @@ $script:window=[Windows.Markup.XamlReader]::Parse((Get-Content -LiteralPath (Joi
 $script:designWidth=[double]$script:window.FindName('AnimationStage').Width
 $script:designHeight=[double]$script:window.FindName('AnimationStage').Height
 $script:ui=@{}
-foreach($name in @('Root','Bubble','Tail','TailNear','SceneText','QuotaText','QuoteText','BubbleShape','Girl','GravityScale','PressScale','FacingScale','TextFacingScale','Header','Refresh','MenuButton','Status','LiveDot','ShortRow','WeekRow','ShortLabel','WeekLabel','ShortUsed','ShortLeft','ShortReset','ShortBar','WeekUsed','WeekLeft','WeekReset','WeekBar')){$script:ui[$name]=$script:window.FindName($name)}
+foreach($name in @('Root','Bubble','Tail','TailNear','SceneText','QuotaText','QuoteText','BubbleShape','Girl','CharacterMirror','GravityScale','PressScale','FacingScale','TextFacingScale','Header','Refresh','MenuButton','Status','LiveDot','ShortRow','WeekRow','ShortLabel','WeekLabel','ShortUsed','ShortLeft','ShortReset','ShortBar','WeekUsed','WeekLeft','WeekReset','WeekBar')){$script:ui[$name]=$script:window.FindName($name)}
 $bitmap=New-Object Windows.Media.Imaging.BitmapImage
 $bitmap.BeginInit();$bitmap.CacheOption=[Windows.Media.Imaging.BitmapCacheOption]::OnLoad
 $bitmap.UriSource=[Uri](Join-Path $script:appDir 'assets\gpt-dragon-niang-bust.png');$bitmap.EndInit();$bitmap.Freeze()
@@ -115,7 +115,7 @@ $script:statusStamp=0
 $script:offsetRight=0.0;$script:offsetBottom=0.0;$script:offsetLeft=$null;$script:anchor='right';$script:side='right';$script:scale=1.0;$script:collapsed=$true
 $script:soundOn=$true;$script:soundVolume=0.9;$script:bubbleTapAdvance=$false;$script:hideMenu=$false
 $script:followHost=$true;$script:desktopTopmost=$false;$script:desktopLeft=$null;$script:desktopTop=$null
-$script:gravityEnabled=$false
+$script:gravityEnabled=$false;$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0
 $script:hostReadiness=New-WidgetReadinessState
 $script:bubbleMode='quota';$script:sceneStartedAt=0;$script:sceneDeadline=0;$script:sceneTimer=$null;$script:sceneRevision=0
 $script:resetTimeMode='countdown';$script:resetPhaseTimer=$null
@@ -139,6 +139,9 @@ try{$settings=Get-Content -LiteralPath $settingsFile -Raw -Encoding UTF8 | Conve
   if($null-ne $settings.colorTextChance){try{$chance=[double]$settings.colorTextChance;if(![double]::IsNaN($chance) -and $chance-ge 0 -and $chance-le 30){$script:colorTextChance=$chance}}catch{}}
   if($null-ne $settings.colorPaused){$script:colorPaused=[bool]$settings.colorPaused}
   if($null-ne $settings.followHost){$script:followHost=[bool]$settings.followHost}
+  if($null-ne $settings.mirrorCharacter){$script:mirrorCharacter=[bool]$settings.mirrorCharacter}
+  if($null-ne $settings.gravityStrength){$v=[double]$settings.gravityStrength;if(![double]::IsNaN($v) -and $v-ge 0.5 -and $v-le 4){$script:gravityStrength=$v}}
+  if($null-ne $settings.elasticStrength){$v=[double]$settings.elasticStrength;if(![double]::IsNaN($v) -and $v-ge 0.25 -and $v-le 3){$script:elasticStrength=$v}}
   if($null-ne $settings.gravityEnabled){$script:gravityEnabled=[bool]$settings.gravityEnabled}
   if($null-ne $settings.desktopTopmost){$script:desktopTopmost=[bool]$settings.desktopTopmost}
   if($null-ne $settings.desktopLeft){$script:desktopLeft=[double]$settings.desktopLeft}
@@ -148,7 +151,7 @@ function Write-WidgetJson($file,$value){
   $temp=$file+'.tmp';[IO.File]::WriteAllText($temp,($value|ConvertTo-Json -Depth 6),[Text.UTF8Encoding]::new($false))
   if([IO.File]::Exists($file)){[IO.File]::Replace($temp,$file,($file+'.bak'),$true)}else{[IO.File]::Move($temp,$file)}
 }
-function Save-Settings {Write-WidgetJson $settingsFile @{layoutVersion=2;right=$script:offsetRight;left=$script:offsetLeft;bottom=$script:offsetBottom;anchor=$script:anchor;side=$script:side;scale=$script:scale;collapsed=$script:collapsed;soundOn=$script:soundOn;soundVolume=$script:soundVolume;bubbleTapAdvance=$script:bubbleTapAdvance;hideMenu=$script:hideMenu;colorMode=$script:colorMode;colorChance=$script:colorChance;colorTextChance=$script:colorTextChance;colorPaused=$script:colorPaused;followHost=$script:followHost;desktopTopmost=$script:desktopTopmost;desktopLeft=$script:desktopLeft;desktopTop=$script:desktopTop;gravityEnabled=$script:gravityEnabled}}
+function Save-Settings {Write-WidgetJson $settingsFile @{layoutVersion=2;right=$script:offsetRight;left=$script:offsetLeft;bottom=$script:offsetBottom;anchor=$script:anchor;side=$script:side;scale=$script:scale;collapsed=$script:collapsed;soundOn=$script:soundOn;soundVolume=$script:soundVolume;bubbleTapAdvance=$script:bubbleTapAdvance;hideMenu=$script:hideMenu;colorMode=$script:colorMode;colorChance=$script:colorChance;colorTextChance=$script:colorTextChance;colorPaused=$script:colorPaused;followHost=$script:followHost;desktopTopmost=$script:desktopTopmost;desktopLeft=$script:desktopLeft;desktopTop=$script:desktopTop;gravityEnabled=$script:gravityEnabled;mirrorCharacter=$script:mirrorCharacter;gravityStrength=$script:gravityStrength;elasticStrength=$script:elasticStrength}}
 function Get-WidgetPlacementFrame {
   if($script:followHost){return Get-WidgetVisibleFrame}
   $point=if($null-ne $script:desktopLeft -and $null-ne $script:desktopTop){[Drawing.Point]::new([int]$script:desktopLeft,[int]$script:desktopTop)}else{[Drawing.Point]::new(0,0)}
@@ -171,7 +174,8 @@ function Set-WidgetFollowHost([bool]$Follow) {
   Set-Appearance;Save-Settings;Tick-Widget
 }
 function Set-Facing {
-  $factor=if($script:side-eq 'left'){-1.0}else{1.0}
+  $factor=1.0
+  $script:ui.CharacterMirror.ScaleX=if($script:mirrorCharacter){-1.0}else{1.0}
   $script:ui.FacingScale.ScaleX=$factor;$script:ui.TextFacingScale.ScaleX=$factor
   # Refresh now shares SceneText's mirror compensation with the title.
   $script:ui.Refresh.RenderTransform=[Windows.Media.Transform]::Identity
@@ -185,6 +189,7 @@ function Set-Appearance {
     if(Test-WidgetPlacementFrame $frame $dpi){$actual=[Math]::Min($actual,[Math]::Min(($frame.Right-$frame.Left)/$dpi/$script:designWidth,($frame.Bottom-$frame.Top)/$dpi/$script:designHeight))}
   }
   $script:displayScale=$actual
+  if($script:ui.Girl.CacheMode){$script:ui.Girl.CacheMode.RenderAtScale=[Math]::Min(6,[Math]::Max(1,$actual*(Get-WidgetPlacementDpi)*1.5))}
   # Transparent space around the original 350px pose contains press/rebound
   # overshoot without shrinking the character or exposing a rectangular cut.
   $null=Set-WidgetPixelSize (Get-WidgetPlacementDpi)
@@ -632,12 +637,11 @@ $pressMove={param($sender,$event)
   $y=[int][Math]::Max($frame.Top,[Math]::Min($frame.Bottom-$h+$floorPadding,$script:drag.top+$dy))
   [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,$x,$y,0,0,0x15)|Out-Null
   $script:lastPosition=$null
-  if($script:gravityEnabled){Add-WidgetGravitySample}
   if($script:followHost){
     $script:offsetRight=($frame.Right-$x-$w)/$dpi;$script:offsetBottom=($frame.Bottom-$y-$h)/$dpi
     $script:offsetLeft=($x-$frame.Left)/$dpi;$script:anchor='free'
   }else{$script:desktopLeft=$x;$script:desktopTop=$y}
-  $script:side=if($x+$w/2-lt ($frame.Left+$frame.Right)/2){'left'}else{'right'};Set-Facing
+  $script:side=if($x+$w/2-lt ($frame.Left+$frame.Right)/2){'left'}else{'right'}
 }
 $pressUp={param($sender,$event)
   if(!$script:drag){return}
@@ -651,7 +655,7 @@ $pressUp={param($sender,$event)
 }
 $script:ui.Girl.Add_MouseLeftButtonDown($pressDown);$script:ui.Girl.Add_MouseMove($pressMove);$script:ui.Girl.Add_MouseLeftButtonUp($pressUp)
 $script:ui.Girl.Add_LostMouseCapture({
-  if($script:drag){$script:drag=$null;if($script:gravityEnabled){Release-WidgetGravityDrop}else{Animate-Press $false};Stop-WidgetAudio;Save-Settings;$script:hostEventTimer.Start()}
+  if($script:drag){$script:drag=$null;if($script:gravityEnabled){Release-WidgetGravityDrop -Cancel}else{Animate-Press $false};Stop-WidgetAudio;Save-Settings;$script:hostEventTimer.Start()}
 })
 function Ensure-QuotaWorker([long]$now){
   $updateFlag=Join-Path $script:dataDir 'update-installing.json'
@@ -693,6 +697,7 @@ function Ensure-QuotaWorker([long]$now){
   catch{[IO.File]::WriteAllText((Join-Path $script:dataDir 'worker-error.txt'),$_.Exception.Message,[Text.UTF8Encoding]::new($false))}
 }
 function Stop-WidgetRuntime {
+  if($script:gravitySampler){$script:gravitySampler.Stop()}
   if($script:runtimeClosed){return};$script:runtimeClosed=$true
   try{if($script:hostFollower){$script:hostFollower.Dispose()}}catch{}
   foreach($timer in @($script:timer,$script:hostEventTimer,$script:menuTimer,$script:sceneTimer,$script:resetPhaseTimer,$script:closeTimer,$script:gravityTimer)){try{if($timer){$timer.Stop()}}catch{}}

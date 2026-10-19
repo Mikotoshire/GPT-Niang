@@ -8,6 +8,9 @@ if($gravityHash -ne '56F511BAADEF2C521D7DE983418813B075B3C2194825C7E17C06B59F267
 if(!('nkast.Aether.Physics2D.Dynamics.World' -as [type])){Add-Type -Path $gravityLibrary}
 if(!('GptGravityModel' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'gravity-model.cs') -ReferencedAssemblies $gravityLibrary}
 
+Add-Type -AssemblyName PresentationCore,WindowsBase
+if(!('GptGravityRenderLoop' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'gravity-render.cs') -ReferencedAssemblies @([Windows.Media.CompositionTarget].Assembly.Location,[Windows.DependencyObject].Assembly.Location)}
+
 function Get-WidgetGravityPadding {
   # Ground is the visible character's feet, excluding the transparent canvas margin.
   return [Math]::Max(0,$script:designHeight-([Windows.Controls.Canvas]::GetTop($script:ui.Root)+[Windows.Controls.Canvas]::GetTop($script:ui.Girl)+$script:ui.Girl.Height))
@@ -24,12 +27,13 @@ function Get-WidgetGravityGeometry {
 function Initialize-WidgetGravity {
   $script:gravity=[GptGravityModel]::new()
   $script:gravityInertia=$false
-  $script:gravitySamples=[Collections.Generic.List[object]]::new()
-  $script:gravityGestureClock=[Diagnostics.Stopwatch]::StartNew()
+  $script:gravitySampler=[GptDragVelocity]::new()
+  if($null-eq $script:gravityStrength){$script:gravityStrength=1.6}
+  if($null-eq $script:elasticStrength){$script:elasticStrength=1.0}
+  $script:gravity.SetTuning($script:gravityStrength,$script:elasticStrength)
   if($script:gravityEnabled){$script:gravity.DropFrom([Math]::Max(0,$script:offsetBottom/[Math]::Max(0.1,$script:displayScale)))}
   $script:gravityClock=[Diagnostics.Stopwatch]::StartNew()
-  $script:gravityTimer=[Windows.Threading.DispatcherTimer]::new([Windows.Threading.DispatcherPriority]::Render)
-  $script:gravityTimer.Interval=[TimeSpan]::FromMilliseconds(16)
+  $script:gravityTimer=[GptGravityRenderLoop]::new()
   $script:gravityTimer.Add_Tick({try{Update-WidgetGravity}catch{
     $script:gravityTimer.Stop()
     [IO.File]::WriteAllText((Join-Path $script:dataDir 'gravity-error.txt'),$_.Exception.ToString(),[Text.UTF8Encoding]::new($false))
@@ -43,6 +47,7 @@ function Set-WidgetGravityPose {
   $script:ui.GravityScale.ScaleY=$script:gravity.ScaleY
 }
 function Set-WidgetGravityMode([bool]$Enabled) {
+  $script:gravitySampler.Stop()
   $script:gravityEnabled=$Enabled
   $script:gravityInertia=$false
   $script:gravityTimer.Stop()
@@ -63,33 +68,25 @@ function Set-WidgetGravityMode([bool]$Enabled) {
 }
 function Begin-WidgetGravityDrag {
   $script:gravityInertia=$false
-  $script:gravitySamples.Clear();$script:gravityGestureClock.Restart()
-  Add-WidgetGravitySample
+  $script:gravitySampler.Start()
   $script:gravityTimer.Stop();$script:gravity.BeginDrag();Set-WidgetGravityPose
 }
-function Add-WidgetGravitySample {
-  $rect=New-Object GptWidgetNative+Rect
-  [GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
-  $now=$script:gravityGestureClock.Elapsed.TotalSeconds
-  $script:gravitySamples.Add([pscustomobject]@{Time=$now;X=$rect.Left;Y=$rect.Top})
-  while($script:gravitySamples.Count -gt 2 -and $script:gravitySamples[0].Time -lt $now-0.10){$script:gravitySamples.RemoveAt(0)}
+function Set-WidgetPhysicsTuning {
+  $script:gravity.SetTuning($script:gravityStrength,$script:elasticStrength)
+  Save-Settings
 }
-function Release-WidgetGravityDrop {
+function Release-WidgetGravityDrop([switch]$Cancel) {
   $frame=Get-WidgetPlacementFrame;$dpi=Get-WidgetPlacementDpi
   $rect=New-Object GptWidgetNative+Rect
   [GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
   $geometry=Get-WidgetGravityGeometry
   $height=($frame.Bottom-$rect.Bottom+$geometry.Padding)/$geometry.Unit
-  $vx=0.0;$vy=0.0
-  if($script:gravitySamples.Count -gt 1){
-    Add-WidgetGravitySample
-    $first=$script:gravitySamples[0];$last=$script:gravitySamples[$script:gravitySamples.Count-1]
-    $dt=$last.Time-$first.Time
-    if($dt -ge 0.008 -and $dt -le 0.15){$vx=($last.X-$first.X)/$dt/$geometry.Unit;$vy=($first.Y-$last.Y)/$dt/$geometry.Unit}
-  }
+  $velocity=$script:gravitySampler.Finish($geometry.Unit)
+  if($Cancel){$velocity=@(0.0,0.0)}
+  $vx=$velocity[0];$vy=$velocity[1]
   $script:gravity.SetHorizontalPosition([Math]::Max(0,($rect.Left-$frame.Left)/$geometry.Unit))
   $script:gravity.FlingFrom([Math]::Max(0,$height),$vx,$vy)
-  $script:gravitySamples.Clear();$script:gravityInertia=$true;$script:anchor='free'
+  $script:gravityInertia=$true;$script:anchor='free'
   $script:offsetBottom=$script:gravity.Height*$script:displayScale
   Set-WidgetGravityPose;Start-WidgetGravityTimer
 }
@@ -115,8 +112,7 @@ function Update-WidgetGravity {
   }
   $script:offsetBottom=$script:gravity.Height*$script:displayScale
   if($script:followHost){
-    $nativeFrame=[GptWidgetNative]::Frame($script:hostHandle)
-    $script:hostFollower.Configure($script:hostHandle,$nativeFrame.Left,$nativeFrame.Top,$nativeFrame.Right,$nativeFrame.Bottom,$w,$h,[int]($script:offsetLeft*$dpi),[int]($script:offsetRight*$dpi),[int]($script:gravity.Height*$unit-$padding),$script:anchor,$true)
+    $script:hostFollower.MovePose([int]($script:offsetLeft*$dpi),[int]($script:offsetRight*$dpi),[int]($script:gravity.Height*$unit-$padding),$script:anchor)
   }else{
     $rect=New-Object GptWidgetNative+Rect;[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
     $y=[int][Math]::Round($frame.Bottom-$h+$padding-$script:gravity.Height*$unit)

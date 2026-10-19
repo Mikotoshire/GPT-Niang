@@ -76,7 +76,8 @@
     </Ellipse>
     <Image x:Name="Girl" Canvas.Left="142" Canvas.Top="142" Width="208" Height="208" Stretch="UniformToFill" Cursor="Hand" RenderOptions.BitmapScalingMode="HighQuality" RenderTransformOrigin="1,1"
            ToolTip="点角色看额度；点气泡看语录，再点收起；拖动调整位置；右键设置">
-      <Image.RenderTransform><ScaleTransform x:Name="GravityScale"/></Image.RenderTransform>
+      <Image.CacheMode><BitmapCache RenderAtScale="2"/></Image.CacheMode>
+      <Image.RenderTransform><TransformGroup><ScaleTransform x:Name="CharacterMirror" CenterX="-104" ScaleX="1"/><ScaleTransform x:Name="GravityScale"/></TransformGroup></Image.RenderTransform>
     </Image>
     <Button x:Name="MenuButton" Canvas.Left="320" Canvas.Top="162" Width="24" Height="24" Content="☰"
             FontSize="15" Opacity="0" IsHitTestVisible="False" Background="#EDE7F6" ToolTip="挂件设置"/>

@@ -88,6 +88,9 @@ public sealed class GptWidgetHostFollower : IDisposable {
   this.bottom=bottom;this.anchor=anchor;this.enabled=enabled;
   if(enabled)Synchronize();
  }
+ public void MovePose(int left,int right,int bottom,string anchor){
+  this.left=left;this.right=right;this.bottom=bottom;this.anchor=anchor;enabled=true;Synchronize();
+ }
  public void Suspend(){enabled=false;}
  public void Detach(){
   enabled=false;ReleaseHooks();host=IntPtr.Zero;Moving=false;hiddenByHost=false;

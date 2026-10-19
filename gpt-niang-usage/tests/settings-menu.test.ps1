@@ -9,6 +9,8 @@ function Set-WidgetFollowHost([bool]$Follow){$script:followHost=$Follow}
 function Set-WidgetMenuBounds {}
 function Position-WidgetMenuToHost {}
 function Set-Appearance {}
+function Set-Facing {}
+function Set-WidgetPhysicsTuning {Save-Settings}
 function Set-WidgetAudioVolume {}
 function Set-WidgetGravityMode([bool]$Enabled){$script:gravityEnabled=$Enabled;Save-Settings}
 function Stop-WidgetAudio {}
@@ -22,6 +24,7 @@ Initialize-WidgetUpdater
 $script:window=New-Object Windows.Window
 $script:collapsed=$true;$script:bubbleMode='quota';$script:followHost=$true;$script:desktopTopmost=$true
 $script:scale=1.0;$script:soundOn=$true;$script:soundVolume=0.9;$script:bubbleTapAdvance=$false;$script:hideMenu=$false
+$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0
 $script:colorMode='mixed';$script:colorChance=0.5;$script:colorTextChance=3;$script:colorPaused=$false
 try{
   Initialize-WidgetSettingsMenu
@@ -33,7 +36,14 @@ try{
   $script:settingsMenuUi.Gravity.IsChecked=$false
   $script:settingsMenuUi.Gravity.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
   Assert-Equal $script:gravityEnabled $false 'Gravity toggle disables the controller'
-  $expected=@('查看额度','换一句台词','刷新额度','编辑我的语录','显示与位置','外观设置','声音与点击','更新','退出 GPT 娘')
+  $script:settingsMenuUi.Mirror.IsChecked=$true
+  $script:settingsMenuUi.Mirror.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
+  Assert-Equal $script:mirrorCharacter $true 'Manual mirror is independently enabled'
+  $script:settingsMenuUi.GravityStrength.Value=2.2
+  $script:settingsMenuUi.ElasticStrength.Value=1.5
+  Assert-Equal $script:gravityStrength 2.2 'Gravity slider updates local preference'
+  Assert-Equal $script:elasticStrength 1.5 'Elasticity slider updates local preference'
+  $expected=@('查看额度','换一句台词','刷新额度','编辑我的语录','显示与位置','外观设置','重力与弹性','声音与点击','更新','退出 GPT 娘')
   $actual=@($script:context.Items|Where-Object{$_.Header-is [string]}|ForEach-Object{$_.Header})
   Assert-Equal ($actual-join '|') ($expected-join '|') 'Menu entries and removed title block'
   Assert-Equal $script:settingsMenuUi.UpdateVersion.Header '当前版本：1.3.2' 'Update menu shows actual version'

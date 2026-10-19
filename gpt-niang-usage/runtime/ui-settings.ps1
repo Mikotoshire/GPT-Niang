@@ -139,9 +139,22 @@ function Initialize-WidgetSettingsMenu {
   $script:sizeSlider=$size.Slider;$script:settingsMenuUi.SizeText=$size.Value;$size.Slider.Value=$script:scale
   $size.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:scale=[Math]::Round($sender.Value,1);$script:settingsMenuUi.SizeText.Text=([Math]::Round($script:scale*100)).ToString()+'%';Update-WidgetSizePresets;Set-Appearance;Save-Settings})
   Add-SettingsPanel $size.Panel
+  $script:settingsMenuUi.Mirror=Add-SettingsAction '角色镜像翻转' {param($sender,$event)$script:mirrorCharacter=[bool]$sender.IsChecked;Set-Facing;Save-Settings} -Checkable -ReturnItem
   $script:settingsMenuUi.Hide=Add-SettingsAction '隐藏设置按钮' {param($sender,$event)$script:hideMenu=$sender.IsChecked;Set-MenuVisible $false;Save-Settings} -Description '仍可右键点角色打开设置' -Checkable -ReturnItem
   } -ReturnItem
   $script:settingsMenuUi.Gravity=Add-SettingsAction '重力模式' {param($sender,$event)Set-WidgetGravityMode ([bool]$sender.IsChecked)} -Description '单击轻跳，长按蓄力，拖动甩出带惯性' -Checkable -ReturnItem
+  $script:settingsMenuUi.Physics=Add-SettingsSubmenu '重力与弹性' {
+    $g=New-SettingsSlider '重力强度' 0.5 4 0.1
+    $script:settingsMenuUi.GravityStrength=$g.Slider;$script:settingsMenuUi.GravityStrengthText=$g.Value
+    $g.Slider.Value=$script:gravityStrength
+    $g.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:gravityStrength=[Math]::Round($sender.Value,1);$script:settingsMenuUi.GravityStrengthText.Text=$script:gravityStrength.ToString('0.0')+'×';Set-WidgetPhysicsTuning})
+    Add-SettingsPanel $g.Panel
+    $e=New-SettingsSlider '弹性势能' 0.25 3 0.05
+    $script:settingsMenuUi.ElasticStrength=$e.Slider;$script:settingsMenuUi.ElasticStrengthText=$e.Value
+    $e.Slider.Value=$script:elasticStrength
+    $e.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:elasticStrength=[Math]::Round($sender.Value,2);$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
+    Add-SettingsPanel $e.Panel
+  } -ReturnItem
   $script:settingsMenuUi.Colors=Add-SettingsSubmenu '配色效果' {
   $script:settingsMenuUi.ColorMixed=Add-SettingsAction '台词与颜色独立随机' {Set-WidgetColorMode 'mixed';Save-Settings;Update-WidgetSettingsMenu} -Description '先抽台词，再抽变色；每句都能触发' -Checkable -ReturnItem
   $script:settingsMenuUi.ColorOriginal=Add-SettingsAction '保持原色' {Set-WidgetColorMode 'original';Save-Settings;Update-WidgetSettingsMenu} -Checkable -ReturnItem
@@ -232,6 +245,9 @@ function Update-WidgetSettingsMenu{
     $script:settingsMenuUi.Topmost.Visibility=$desktopVisibility;$script:settingsMenuUi.TopmostDivider.Visibility=$desktopVisibility
     $script:settingsMenuUi.Tap.IsChecked=$script:bubbleTapAdvance;$script:settingsMenuUi.Sound.IsChecked=$script:soundOn;$script:settingsMenuUi.Hide.IsChecked=$script:hideMenu
     $script:settingsMenuUi.Gravity.IsChecked=$script:gravityEnabled
+    $script:settingsMenuUi.Mirror.IsChecked=$script:mirrorCharacter
+    $script:settingsMenuUi.GravityStrength.Value=$script:gravityStrength;$script:settingsMenuUi.GravityStrengthText.Text=$script:gravityStrength.ToString('0.0')+'×'
+    $script:settingsMenuUi.ElasticStrength.Value=$script:elasticStrength;$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×'
     $script:settingsMenuUi.ColorLinked.IsChecked=$script:colorMode-eq 'linked';$script:settingsMenuUi.ColorRainbow.IsChecked=$script:colorMode-eq 'rainbow';$script:settingsMenuUi.ColorOriginal.IsChecked=$script:colorMode-eq 'original'
     $script:settingsMenuUi.ColorSurprise.IsChecked=$script:colorMode-eq 'surprise';$script:settingsMenuUi.ColorRare.IsChecked=$script:colorMode-eq 'rare';$script:settingsMenuUi.ColorSpecial.IsChecked=$script:colorMode-eq 'special'
     $script:settingsMenuUi.ColorMixed.IsChecked=$script:colorMode-eq 'mixed'

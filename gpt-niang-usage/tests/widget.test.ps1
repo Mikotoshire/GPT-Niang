@@ -18,7 +18,7 @@ $null=New-Item -ItemType Directory -Path $script:dataDir
 $script:window=[Windows.Markup.XamlReader]::Parse([IO.File]::ReadAllText((Join-Path $appDir 'widget.xaml'),[Text.Encoding]::UTF8))
 $script:ui=@{}
 foreach($name in @('Root','Girl','Bubble','SceneText','QuotaText','Refresh','ShortRow','WeekRow','ShortLabel','WeekLabel','ShortUsed','ShortLeft','ShortReset','ShortBar','WeekUsed','WeekLeft','WeekReset','WeekBar','Status','LiveDot','Header','QuoteText')){$script:ui[$name]=$script:window.FindName($name)}
-foreach($name in @('FacingScale','TextFacingScale','MenuButton')){$script:ui[$name]=$script:window.FindName($name)}
+foreach($name in @('FacingScale','CharacterMirror','TextFacingScale','MenuButton')){$script:ui[$name]=$script:window.FindName($name)}
 $script:ui.Girl.Source=[Windows.Media.Imaging.BitmapImage]::new([Uri](Join-Path $appDir 'assets\gpt-dragon-niang-bust.png'))
 $script:bubbleMode='quota';$script:status=$null;$script:statusStamp=0
 $script:resetTimeMode='fixed';$script:resetPhaseTimer=$null;$script:collapsed=$true;$script:closeCount=0
@@ -315,7 +315,11 @@ try{
   Set-Snapshot @{ok=$true;queryOk=$true;observedAt=$now;planLabel='未知套餐';windows=@($short)}
   Assert-Equal $script:ui.Header.Text '剩余额度' 'Unknown plan does not clutter heading'
   foreach($side in @('left','right')){
-    $script:side=$side;Set-Facing
+    $script:side=$side;$script:mirrorCharacter=$false;Set-Facing
+    Assert-Equal $script:ui.CharacterMirror.ScaleX 1 'Side does not flip the character'
+    $script:mirrorCharacter=$true;Set-Facing
+    Assert-Equal $script:ui.CharacterMirror.ScaleX -1 'Explicit switch mirrors only the character'
+    $script:mirrorCharacter=$false;Set-Facing
     Assert-Equal $script:ui.Refresh.RenderTransform.Value.M11 1 'Refresh must not be mirrored twice'
     foreach($rows in @(@($individual),@($short,$week))){
       Set-Snapshot @{ok=$true;queryOk=$true;observedAt=$now;planLabel='Enterprise';windows=$rows}

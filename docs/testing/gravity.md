@@ -32,3 +32,11 @@ Aether migration adds explicit tests for two-axis fling, wall restitution, frict
 Production HWND tests also verify drag sampling, upward/rightward inertia, actual horizontal movement and rejection of stale drag history. Archive tests accept only the pinned dependency hash and reject substitutions; release updating remains disabled by the personal-fork policy.
 
 Stable-launch regression: hash verification uses .NET SHA256 directly because the supervisor environment may lack PowerShell module autoload paths. WPF tests deliberately make Get-FileHash unavailable while loading the production controller.
+
+## Motion tuning regression
+
+`motion-tuning.test.ps1` first failed with a missing GptDragVelocity type, then passed after independent sampling and tuning were added. Stop/release cases cover 0.1, 0.5 and 1 second pauses; fast immediate release preserves both velocity components. More gravity produces a faster fall, while identical compression with different elasticity yields different jump heights.
+
+A one-second invisible-HWND rendering harness on the same machine observed 36 callbacks with the previous dispatcher timer (median 29.3 ms, P95 46.2 ms) and 115 callbacks with the rendering event (median 6.2 ms, P95 28.1 ms). This is a local scheduling measurement, not a guarantee of on-screen FPS. Real display smoothness still depends on compositor/device load.
+
+Window tests exercise actual horizontal movement, cancellation, mirrored full compression bounds, mode cleanup and persistence. Settings tests exercise separate mirror/gravity/elasticity controls. Original sizing, desktop mode and layout regressions remain required.

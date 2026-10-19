@@ -18,7 +18,7 @@ foreach($name in @('Set-WidgetPixelSize','Set-AnimatedValue','Save-Settings')){
 }
 $script:window=[Windows.Markup.XamlReader]::Parse([IO.File]::ReadAllText((Join-Path $AppDir 'widget.xaml'),[Text.Encoding]::UTF8))
 $script:ui=@{}
-foreach($name in @('Root','Girl','GravityScale','PressScale','FacingScale')){$script:ui[$name]=$script:window.FindName($name)}
+foreach($name in @('Root','Girl','GravityScale','CharacterMirror','PressScale','FacingScale')){$script:ui[$name]=$script:window.FindName($name)}
 $script:ui.Girl.Source=[Windows.Media.Imaging.BitmapImage]::new([Uri](Join-Path $AppDir 'assets\gpt-dragon-niang-bust.png'))
 $script:designWidth=378;$script:designHeight=378;$script:displayScale=1
 $script:followHost=$false;$script:gravityEnabled=$false;$script:runtimeClosed=$false;$script:offsetBottom=0
@@ -76,39 +76,55 @@ try {
   if($script:gravityTimer.IsEnabled -or !$script:gravity.Dragging){throw 'Drag must suspend physics until release.'}
   Release-WidgetGravityDrop
   if($script:gravity.Dragging){throw 'Release must leave drag state.'}
-  # Exercise production sampling with a real HWND, preserving physical-to-design units.
-  Begin-WidgetGravityDrag
-  $script:gravitySamples.Clear();$script:gravityGestureClock.Restart()
-  $script:gravitySamples.Add([pscustomobject]@{Time=-0.04;X=450;Y=650})
-  $script:gravitySamples.Add([pscustomobject]@{Time=-0.02;X=470;Y=640})
+  # Native pointer sampling is tested deterministically in motion-tuning.test.ps1.
+  # Here verify that model momentum is applied to the real native window.
   [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,490,630,0,0,0x15)|Out-Null
-  Release-WidgetGravityDrop
-  if($script:gravity.HorizontalVelocity-le 0 -or $script:gravity.Velocity-le 0){throw 'Production drag sampler lost the fling direction.'}
+  $geometry=Get-WidgetGravityGeometry
+  $script:gravity.SetHorizontalPosition((490-100)/$geometry.Unit)
+  $script:gravity.FlingFrom(200,600,300);$script:gravityInertia=$true
   $script:gravityClock.Restart();Start-Sleep -Milliseconds 25;Update-WidgetGravity
   $flung=New-Object GptWidgetNative+Rect
   [GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$flung)|Out-Null
   if($flung.Left-le 490){throw 'Controller did not apply horizontal inertia to the real HWND.'}
-  Begin-WidgetGravityDrag;$script:gravitySamples.Clear();$script:gravityGestureClock.Restart()
-  $script:gravitySamples.Add([pscustomobject]@{Time=-0.6;X=300;Y=800})
-  $script:gravitySamples.Add([pscustomobject]@{Time=-0.4;X=490;Y=630})
-  Release-WidgetGravityDrop
-  if($script:gravity.HorizontalVelocity-ne 0 -or $script:gravity.Velocity-ne 0){throw 'Stale pointer history must not create a fling.'}
-  $checks+=2
+  Begin-WidgetGravityDrag;Release-WidgetGravityDrop -Cancel
+  if($script:gravity.HorizontalVelocity-ne 0 -or $script:gravity.Velocity-ne 0){throw 'Capture cancellation must clear momentum.'}
+  $script:ui.CharacterMirror.ScaleX=-1;$script:ui.FacingScale.ScaleX=1
+  $script:gravity.BeginPress();for($i=0;$i-lt 200;$i++){$script:gravity.Advance(1.0/120,700)}
+  Set-WidgetGravityPose;$script:window.UpdateLayout()
+  $bounds=$script:ui.Girl.TransformToAncestor($script:window.FindName('AnimationStage')).TransformBounds([Windows.Rect]::new(0,0,208,208))
+  if($bounds.Left-lt -0.1 -or $bounds.Right-gt 378.1){throw 'Manual mirror must stay inside the canvas during full compression.'}
+  $checks+=3
   $script:followHost=$true;$script:hostHandle=[IntPtr]::Zero
   $script:gravity.BeginPress();Start-WidgetGravityTimer;Update-WidgetGravity
   if($script:gravityTimer.IsEnabled){throw 'Physics must pause when the followed host is unavailable.'}
   $checks++
   $script:hostHandle=$script:widgetHandle
   $script:hostFollower=[pscustomobject]@{}
-  $script:hostFollower|Add-Member ScriptMethod Configure {
-    param($Target,$FrameLeft,$FrameTop,$FrameRight,$FrameBottom,$Width,$Height,$Left,$Right,$Bottom,$Anchor,$Enabled)
+  $script:hostFollower|Add-Member ScriptMethod MovePose {
+    param($Left,$Right,$Bottom,$Anchor)
     $script:configuredGravityBottom=$Bottom
   }
   $script:gravity.DropFrom(0);Update-WidgetGravity
   $geometry=Get-WidgetGravityGeometry
   if([Math]::Abs($script:configuredGravityBottom+$geometry.Padding)-gt 0.6){throw 'Native host follower must use the same visible-floor offset as physics.'}
   $checks++
+  . (Join-Path $AppDir 'runtime/host-follow.ps1')
+  $hostWindow=[Windows.Window]::new();$hostWindow.Opacity=0;$hostWindow.ShowActivated=$false
+  $hostWindow.WindowStyle=[Windows.WindowStyle]::None;$hostWindow.Width=800;$hostWindow.Height=700;$hostWindow.Left=100;$hostWindow.Top=100
+  $hostWindow.Show();$nativeHost=([Windows.Interop.WindowInteropHelper]::new($hostWindow)).Handle
+  $follower=[GptWidgetHostFollower]::new($script:widgetHandle)
+  try{
+    $frame=[GptWidgetNative]::Frame($nativeHost);$geometry=Get-WidgetGravityGeometry
+    $follower.Configure($nativeHost,$frame.Left,$frame.Top,$frame.Right,$frame.Bottom,$geometry.Width,$geometry.Height,40,0,100,'free',$true)
+    $before=New-Object GptWidgetNative+Rect;[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$before)|Out-Null
+    $follower.MovePose(60,0,120,'free')
+    $after=New-Object GptWidgetNative+Rect;[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$after)|Out-Null
+    if($after.Left-$before.Left-ne 20 -or $after.Top-$before.Top-ne -20){throw 'Native pose update must move without full reconfiguration.'}
+    $checks++
+  }finally{$follower.Dispose();$hostWindow.Close()}
+  $script:mirrorCharacter=$true;$script:gravityStrength=2.2;$script:elasticStrength=1.5;Save-Settings
+  if(!$script:savedSettings.mirrorCharacter -or $script:savedSettings.gravityStrength-ne 2.2 -or $script:savedSettings.elasticStrength-ne 1.5){throw 'Mirror and physical tuning must persist independently.'}
   Write-Output "PASS: $checks WPF floor/scale/mirror cases, live mode reset and settings persistence."
 } finally {
-  $script:gravityTimer.Stop();$script:window.Close()
+  $script:gravityTimer.Stop();$script:gravitySampler.Stop();$script:window.Close()
 }
