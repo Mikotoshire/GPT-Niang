@@ -84,3 +84,21 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tests/gravity-wpf.t
 `touchingFloor/wasTouchingFloor` 区分进入接触与持续接触；只在新的下落碰撞扣速一次。竖直弹跳停止后，只归零 Y，X 继续滑行；地面连续接触不重复乘 0.82。直接在地面开始水平滑动不计为一次下落碰撞。仅两轴速度都已很低时，原有睡眠阈值才结束物理循环。`FloorImpacts` 计数用于模型回归，每次 Reset 清零。
 
 `tests/horizontal-impact.test.ps1` 覆盖左右两方向、多次落地按比例损失、持续接触不重复扣速、竖直归零而横向继续、库摩擦最终停稳，以及地面直接滑动不误判碰撞。
+
+## 额度读取诊断（2026-10-19）
+
+仅在本机状态目录写入 `quota-diagnostics.jsonl` 和轮转备份 `.1`，各最多 256 KiB，总计约 512 KiB。单写入者为额度 worker，保持每分钟/显式请求的原查询频率；不新增远程请求，不改变 18 秒查询超时。日志不能追溯安装前的故障。两个文件均受 Git 忽略规则保护。
+
+事件包括 `worker_start`、`query_start`、查询完成 `query`、状态保存失败 `snapshot_write_failed`。查询完成记录 UTC 时间、总耗时、最后 RPC 阶段与该阶段耗时、超时上限、白名单错误码、成功状态。阶段 `initialize` / `account` / `rate_limits` 分别对应初始化、读取登录状态和读取额度；`recovered=true` 表示同一 worker 内失败后恢复成功。只有开始而无完成事件时，可排查进程退出或仍在查询；不直接断言原因。保存失败的日志写入也可能失败，因此日志缺失不能证明没有故障。
+
+严格白名单过滤：不写账户、账户指纹、套餐、令牌、邮箱、具体额度、接口原文、异常堆栈或本机路径。未知错误类型归为 `QUERY_FAILED`。磁盘不可写时日志失败不影响额度读取。读取入口再次过滤字段，忽略损坏行，最多返回 1000 条。
+
+排查命令（在仓库根目录执行）：
+
+```powershell
+node gpt-niang-usage/runtime/control.mjs diagnostics 100
+```
+
+命令仅查看日志，不发起查询，也不返回旧 `status` 命令中的真实额度。也可以双击根目录的 `查看额度诊断.cmd`。排查时先读取此接口，关注最近 worker 启动、超时所在阶段、耗时接近 timeoutMs 及是否恢复；必要时再在本机检查 worker 状态和 Codex 运行状态。不要将真实日志提交或附加到公开 issue。日志轮转后较旧事件会被覆盖。
+
+验证：`tests/diagnostics.test.mjs` 覆盖白名单脱敏、轮转、损坏行、不可写目录、RPC 阶段超时、诊断回调异常不破坏查询，以及真实 worker 的失败后恢复。`runtime/install-files.json` 包含诊断模块，避免迁移/更新后缺失依赖。

@@ -34,3 +34,6 @@ Thumbs.db
 **/quota*.json
 **/update-preferences.json
 *.bundle
+
+# Local-only bounded quota diagnostics
+**/quota-diagnostics.jsonl*

@@ -1,3 +1,4 @@
+import {readDiagnostics} from './diagnostics.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -7,7 +8,9 @@ const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const configPath=path.join(root,'installation.json');
 const config=JSON.parse(fs.readFileSync(configPath,'utf8').replace(/^\uFEFF/,''));
 const command=process.argv[2]??'status';
-if(command==='query'){
+if(command==='diagnostics'){
+  console.log(JSON.stringify({records:readDiagnostics(config.dataDir,Number(process.argv[3]??100))},null,2));
+}else if(command==='query'){
   const result=await requestRefresh(config,configPath);
   console.log(JSON.stringify(result));process.exitCode=result.queryOk && result.ok?0:1;
 }else if(command==='show' || command==='quote' || command==='menu' || command==='close-menu'){

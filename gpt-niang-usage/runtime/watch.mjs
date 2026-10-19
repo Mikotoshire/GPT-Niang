@@ -1,3 +1,4 @@
+import {appendDiagnostic} from './diagnostics.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 import {readUsage,atomicJson,resolveCodexExecutable} from './usage.mjs';
@@ -16,6 +17,8 @@ let refresh;
 const ipc=createPipeRefreshHandler(()=>{if(refresh)void refresh.request();});
 const lock=await acquireWorkerLock(config.dataDir,parentPid,{onLost:()=>process.exit(1),onConnection:ipc.onConnection});
 if(!lock)process.exit(0);
+let lastQueryFailed=false;
+appendDiagnostic(config.dataDir,{event:'worker_start'});
 const statusFile=path.join(config.dataDir,'status.json');
 const healthFile=path.join(config.dataDir,'worker-status.json');
 let status=null,requestToken=readRefreshRequest(path.join(config.dataDir,'refresh.flag')),lastActivity=Date.now(),heartbeat;
@@ -39,7 +42,10 @@ refresh=createRefreshQueue(async()=>{
   if(widgetUpdating(config.dataDir)){ipc.complete(pipeBatch,updatingSnapshot());completeRequests(config.dataDir,batch,updatingSnapshot());return;}
   for(const request of batch)activeRequestIds.add(request.id);
   try {
-    const next=await readUsage(resolveCodexExecutable(config.codexPath),{onAccount:accountKey=>{
+    appendDiagnostic(config.dataDir,{event:'query_start'});
+    const next=await readUsage(resolveCodexExecutable(config.codexPath),{onDiagnostic:entry=>{
+      appendDiagnostic(config.dataDir,{...entry,recovered:entry.ok&&lastQueryFailed});lastQueryFailed=!entry.ok;
+    },onAccount:accountKey=>{
       if(status?.accountKey!==accountKey || !accountKey)save({ok:false,queryOk:false,accountKey,error:'正在读取当前账户额度…',windows:[],checkedAt:Date.now()});
     }});
     save(mergeUsageSnapshot(status,next));
@@ -53,6 +59,7 @@ refresh=createRefreshQueue(async()=>{
 },{onError:error=>{
   // A temporary filesystem failure must not stop the quota worker.
   const code=typeof error?.code==='string'?error.code:'IO';
+  appendDiagnostic(config.dataDir,{event:'snapshot_write_failed',code});
   console.error('Quota snapshot could not be saved; next refresh will retry ('+code+').');
 }});
 

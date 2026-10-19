@@ -103,28 +103,30 @@ export function resolveCodexExecutable(configuredPath,{env=process.env,platform=
 }
 
 // Only three read-only protocol methods are sent. There is no thread or model call.
-export function readUsage(cli, {timeoutMs=18000,spawnProcess=spawn,onAccount=()=>{}}={}) {
+export function readUsage(cli, {timeoutMs=18000,spawnProcess=spawn,onAccount=()=>{},onDiagnostic=()=>{}}={}) {
   return new Promise(resolve=>{
+    const started=Date.now();let stage='initialize',stageStarted=started;
     let finished=false,proc,lines,accountKey=null,account=null,planInfo=identifyPlan(null,null),expectedId=1;
     const failure=(error,errorCode)=>({ok:false,queryOk:false,error,windows:[],...planInfo,accountKey,clearPrevious:!accountKey,...(errorCode?{errorCode}:{})});
     const stopChild=()=>{try{proc?.stdin.end();proc?.kill();}catch{}};
     const finish=data=>{
       if(finished)return; finished=true; clearTimeout(timer);
+      try{onDiagnostic({event:'query',ok:data.ok===true&&data.queryOk===true,stage,durationMs:Date.now()-started,stageMs:Date.now()-stageStarted,timeoutMs,code:data.errorCode??(data.queryOk?'OK':'QUERY_FAILED')});}catch{}
       lines?.close();
       process.removeListener('exit',stopChild);
       stopChild();
       resolve(data);
     };
-    const timer=setTimeout(()=>finish(failure('查询超时，稍后重试')),timeoutMs);
+    const timer=setTimeout(()=>finish(failure('查询超时，稍后重试','TIMEOUT')),timeoutMs);
     try{proc=spawnProcess(cli,['app-server','--stdio'],{windowsHide:true,stdio:['pipe','pipe','pipe']});}
-    catch{finish(failure('Codex 额度服务暂不可用'));return;}
+    catch{finish(failure('Codex 额度服务暂不可用','SPAWN_FAILED'));return;}
     process.once('exit',stopChild);
     proc.stderr.on('data',()=>{}).on('error',()=>{});
     proc.on('error',error=>finish(failure(error.code==='ENOENT'?'未找到 Codex 程序，请检查客户端安装':'无法启动 Codex 额度服务',error.code)));
-    proc.on('close',()=>finish(failure('Codex 额度服务已结束')));
-    proc.stdout.on('error',()=>finish(failure('Codex 额度连接已结束')));
-    proc.stdin.on('error',()=>finish(failure('Codex 额度连接已结束')));
-    const send=data=>{try{proc.stdin.write(JSON.stringify(data)+'\n');}catch{finish(failure('额度连接不可用'));}};
+    proc.on('close',()=>finish(failure('Codex 额度服务已结束','SERVICE_EXIT')));
+    proc.stdout.on('error',()=>finish(failure('Codex 额度连接已结束','CONNECTION_CLOSED')));
+    proc.stdin.on('error',()=>finish(failure('Codex 额度连接已结束','CONNECTION_CLOSED')));
+    const send=data=>{try{proc.stdin.write(JSON.stringify(data)+'\n');}catch{finish(failure('额度连接不可用','CONNECTION_WRITE_FAILED'));}};
     lines=readline.createInterface({input:proc.stdout});
     lines.on('line',line=>{
       if(finished)return;
@@ -133,20 +135,22 @@ export function readUsage(cli, {timeoutMs=18000,spawnProcess=spawn,onAccount=()=
       if(!m || typeof m!=='object' || Array.isArray(m))return;
       if(m.id!==expectedId)return;
       if(m.id===1){
-        if(m.error)return finish(failure('Codex 额度接口未就绪'));
+        if(m.error)return finish(failure('Codex 额度接口未就绪','INITIALIZE_FAILED'));
         expectedId=null;
         send({method:'initialized',params:{}});
+        stage='account';stageStarted=Date.now();
         expectedId=2;
         send({id:2,method:'account/read',params:{refreshToken:false}});
       } else if(m.id===2){
-        if(m.error)return finish(failure('暂时无法读取登录状态'));
+        if(m.error)return finish(failure('暂时无法读取登录状态','ACCOUNT_READ_FAILED'));
         const type=m.result?.account?.type;
         account=m.result?.account;
         planInfo=identifyPlan(account?.planType,null,type??null);
         // Account details and credentials are neither stored nor displayed.
         if(type!=='chatgpt' && type!=='chatgptAuthTokens')return finish(failure('请在 Codex 中使用 ChatGPT 账号登录（API Key 不提供订阅额度）','AUTH_MODE_UNSUPPORTED'));
         accountKey=accountFingerprint(m.result.account);
-        try{onAccount(accountKey);}catch{return finish(failure('无法保存账户切换状态'));}
+        try{onAccount(accountKey);}catch{return finish(failure('无法保存账户切换状态','ACCOUNT_STATE_WRITE_FAILED'));}
+        stage='rate_limits';stageStarted=Date.now();
         expectedId=3;
         send({id:3,method:'account/rateLimits/read',params:{}});
       } else if(m.id===3){
@@ -155,7 +159,7 @@ export function readUsage(cli, {timeoutMs=18000,spawnProcess=spawn,onAccount=()=
         planInfo=identifyPlan(account?.planType,data.plan,account?.type);
         Object.assign(data,planInfo);
         const currentKey=accountFingerprint({...account,planType:data.plan});
-        if(currentKey!==accountKey){accountKey=currentKey;try{onAccount(accountKey);}catch{return finish(failure('无法保存套餐切换状态'));}}
+        if(currentKey!==accountKey){accountKey=currentKey;try{onAccount(accountKey);}catch{return finish(failure('无法保存套餐切换状态','ACCOUNT_STATE_WRITE_FAILED'));}}
         data.clearPrevious=(data.queryOk && !data.ok) || !accountKey;
         data.accountKey=accountKey;
         finish(data);
