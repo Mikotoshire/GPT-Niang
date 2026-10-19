@@ -68,6 +68,24 @@ try{
   $script:gravityTimer.Stop()
   if($script:gravityTimer.FrameCount-ne 6){throw 'Burst-delivered 60-Hz presentation frames were dropped by the arrival-clock limiter'}
   Write-Output 'PASS: six distinct 60-Hz presentation frames survive a burst with a frozen arrival clock'
+  $script:gravityTimer.Start();$arrivalClock.Stop()
+  # Seven frames in 100 ms (60 Hz), alternating long/short intervals. This is
+  # ordinary compositor jitter, not a reason to discard the short-interval frames.
+  foreach($milliseconds in @(0,25,33.333333,58.333333,66.666667,91.666667,100)){
+    $event=[Activator]::CreateInstance([Windows.Media.RenderingEventArgs],$flags,$null,@([TimeSpan]::FromMilliseconds(1000+$milliseconds)),$null)
+    $null=$renderMethod.Invoke($script:gravityTimer,@($null,$event))
+  }
+  $script:gravityTimer.Stop()
+  if($script:gravityTimer.FrameCount-ne 7){throw 'Jittered 60-Hz presentation frames were discarded'}
+  Write-Output 'PASS: all seven 60-Hz frames survive alternating 25-ms and 8.33-ms delivery intervals'
+  $script:gravityTimer.Start();$arrivalClock.Stop()
+  foreach($index in 0..239){
+    $event=[Activator]::CreateInstance([Windows.Media.RenderingEventArgs],$flags,$null,@([TimeSpan]::FromSeconds(1+$index/240.0)),$null)
+    $null=$renderMethod.Invoke($script:gravityTimer,@($null,$event))
+  }
+  $script:gravityTimer.Stop()
+  if($script:gravityTimer.FrameCount-lt 88 -or $script:gravityTimer.FrameCount-gt 92){throw 'The limiter lost its sustained 90-Hz budget'}
+  Write-Output 'PASS: 240-Hz synthetic input remains capped by the sustained 90-Hz budget'
   $script:gravity.SetHorizontalPosition(300);$script:gravity.FlingFrom(600,100,0)
   $script:notifications=0;$script:gravityTimer.Add_Tick({$script:notifications++})
   # A background-priority deadline can starve behind Rendering on a software GPU.

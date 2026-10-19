@@ -162,3 +162,9 @@ GptGravityRenderLoop 保留 MeanStepMs/MaxStepMs（墙钟），新增 MeanPhysic
 CI 的另一轮测得 inputHz=57.78、renderHz=53.83、meanCpuMs=0.994。发现限帧器按 Stopwatch 到达时间而非 RenderingTime 判断预算；同步窗口调用后，连续送达但 RenderingTime 不同的帧可能因到达间隔太近被误丢。修复只将 90 Hz 限帧预算改为渲染时间，物理 dt 仍为真实经过时间。
 
 managed-frames.test.ps1 通过反射停止到达时钟，注入六个间隔 1/60 秒的 RenderingEventArgs。旧代码只能处理部分帧并失败，修复后六帧全部保留；之后另行执行真实 WPF 帧率测量。不要把注入帧的数量当实际显示器帧率。同步更新干净安装验收轮询，对心跳文件正在发布时的短暂读写/解析竞争按原 45 秒截止重试，其他异常继续抛出。
+
+### 正常供帧抖动与持续预算
+
+主分支复跑测得 inputHz=58.54、renderHz=57.57。继续定位出按固定相位补齐后仍可能误丢 25 ms/8.33 ms 交替、平均 60 Hz 的有效帧。新增七帧确定性回归在该实现失败后，将限帧改为容量两帧、按渲染时间补充的 90 Hz 令牌桶；物理仍用真实时间，不增加运动能量。另用 240 Hz 合成输入验证持续处理量仍约 90 Hz。合成输入测试不能当显示器实测。
+
+发布前额外检查 test.yml 在 main push 事件、同一完整源码提交上的最新运行必须 success；不能以分支单次成功或发布器内部某个绿色作业代替。发布门禁已实际拦住一次完整 Windows 检查失败，publish 为 skipped，未生成新包。

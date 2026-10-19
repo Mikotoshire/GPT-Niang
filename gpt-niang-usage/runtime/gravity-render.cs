@@ -55,13 +55,14 @@ public sealed class GptGravityRenderLoop {
     public string LastError { get; private set; }
     TimeSpan last = TimeSpan.MinValue, first;
     readonly Stopwatch clock=new Stopwatch(), cost=new Stopwatch();
-    double previous, notified, nextFrame;
+    double previous, notified, cadenceAt, cadenceTokens;
     bool rendering;
     public void Start() {
         if(IsEnabled)return;IsEnabled=true;last=TimeSpan.MinValue;FrameCount=SlowFrames=0;MaxStepMs=TotalStepMs=0;PositionUpdates=0;LastError=null;
         physicsTicks=poseTicks=placementTicks=0;
         cpuTicks=0;CpuTimingAvailable=true;
-        previous=notified=nextFrame=0;clock.Restart();CompositionTarget.Rendering+=Render;
+        previous=notified=0;cadenceAt=double.NaN;cadenceTokens=2;
+        clock.Restart();CompositionTarget.Rendering+=Render;
     }
     public void Stop() { if(!IsEnabled)return;IsEnabled=false;CompositionTarget.Rendering-=Render; }
     void Notify(){var handler=Tick;if(handler!=null)handler(this,EventArgs.Empty);}
@@ -107,12 +108,15 @@ public sealed class GptGravityRenderLoop {
         // placement can block until composition and compress subsequent arrivals.
         // Physics still advances by real elapsed time below.
         double presentation=frame==null?now:frame.RenderingTime.TotalSeconds;
-        // Rendering can fire faster than scan-out. Keep a phase-based 90-Hz animation budget (headroom above the 60-Hz minimum)
-        // instead of moving the layered HWND hundreds of times per second.
+        // A two-frame token bucket caps sustained work at 90 Hz while retaining
+        // normal 60-Hz long/short presentation jitter after a blocked native move.
+        // A hard minimum gap would discard valid 8/25-ms pairs averaging 60 Hz.
         if(Scene!=null){
-            if(presentation+0.0001<nextFrame)return;
-            nextFrame+=1.0/TargetFps;
-            if(nextFrame<presentation-1.0/TargetFps)nextFrame=presentation+1.0/TargetFps;
+            if(double.IsNaN(cadenceAt) || presentation<cadenceAt)cadenceTokens=2;
+            else cadenceTokens=Math.Min(2,cadenceTokens+(presentation-cadenceAt)*TargetFps);
+            cadenceAt=presentation;
+            if(cadenceTokens+0.000001<1)return;
+            cadenceTokens=Math.Max(0,cadenceTokens-1);
         }
         if(FrameCount==0)first=last;
         FrameCount++;
