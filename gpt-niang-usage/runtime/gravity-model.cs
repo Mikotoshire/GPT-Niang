@@ -11,6 +11,9 @@ public sealed class GptGravityModel {
     public const double CompressionSeconds = 0.22;
     public const double ChargeSeconds = 1.2;
     public const double Restitution = 0.64;
+    public const double HorizontalRetention = 0.82;
+    public const float GroundFriction = 0.12f;
+    public int FloorImpacts { get; private set; }
     public double Height { get; private set; }
     public double Velocity { get; private set; }
     public double ScaleX { get; private set; }
@@ -35,7 +38,7 @@ public sealed class GptGravityModel {
     World world;
     Body body, bounds;
     Fixture floor;
-    bool floorContact, stopLanding;
+    bool floorContact, stopLanding, touchingFloor, wasTouchingFloor;
     double accumulator, ceilingLimit = -1, widthLimit = -1;
     public double HorizontalPosition { get; private set; }
     public double HorizontalVelocity { get { return body == null ? 0 : body.LinearVelocity.X * Units; } }
@@ -47,7 +50,7 @@ public sealed class GptGravityModel {
     void CreateWorld() {
         bounds = null; floor = null; world = new World(new Vector2(0, (float)(-EffectiveGravity / Units)));
         body = world.CreateBody(Vector2.Zero, 0, BodyType.Dynamic);
-        body.CreateCircle(0.25f, 1).Friction = 0.65f;
+        body.CreateCircle(0.25f, 1).Friction = GroundFriction;
         body.FixedRotation = true; body.IsBullet = true;
         world.ContactManager.PreSolve += OnContact;
         ceilingLimit = widthLimit = -1;
@@ -55,10 +58,13 @@ public sealed class GptGravityModel {
     void OnContact(Contact contact, ref Manifold manifold) {
         if(!contact.IsTouching)return;
         if (contact.FixtureA == floor || contact.FixtureB == floor) {
+            touchingFloor = true;
             floorContact = body.LinearVelocity.Y <= 0;
             stopLanding = !multiple || PeakHeight <= TapApex + 0.5;
             contact.Restitution = stopLanding ? 0 : (float)Restitution;
-            contact.Friction = 0.65f;
+            // Do not let a large vertical impact impulse erase all tangential momentum.
+            // Apply one bounded impact loss below; Aether handles sliding friction afterwards.
+            contact.Friction = wasTouchingFloor && stopLanding ? GroundFriction : 0;
         } else { contact.Restitution = 0.64f; contact.Friction = 0; }
     }
     void SetBounds(double ceiling, double width) {
@@ -78,7 +84,7 @@ public sealed class GptGravityModel {
 
     public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; Reset(); }
     public void Reset() {
-        CreateWorld(); accumulator = 0;
+        CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
         ScaleX = ScaleY = 1; Rebounds = 0;
         IsPressed = ReleasePending = Dragging = flying = multiple = false;
@@ -156,14 +162,17 @@ public sealed class GptGravityModel {
         UpdatePose();
     }
     void AdvanceFlight(double seconds, double ceiling) {
-        double previousVelocity = Velocity;
-        floorContact = false; stopLanding = false;
+        double previousVelocity = Velocity, previousHeight = Height;
+        floorContact = touchingFloor = false; stopLanding = false;
         world.Step((float)seconds);
         Height = Math.Max(0, Math.Min(ceiling, body.Position.Y * Units));
         HorizontalPosition = Math.Max(0,Math.Min(widthLimit,body.Position.X * Units));
         Velocity = body.LinearVelocity.Y * Units;
         if (floorContact && previousVelocity <= 0) {
-            impact = 0.12;
+            if(!wasTouchingFloor && (previousHeight>0 || previousVelocity<0)){
+                body.LinearVelocity = new Vector2(body.LinearVelocity.X * (float)HorizontalRetention,body.LinearVelocity.Y);
+                FloorImpacts++;impact = 0.12;
+            }
             if (stopLanding) {
                 Height = Velocity = 0;
                 body.Position = new Vector2(body.Position.X,0);
@@ -172,6 +181,7 @@ public sealed class GptGravityModel {
                 PeakHeight = Height + Velocity*Velocity/(2*EffectiveGravity); Rebounds++;
             }
         }
+        wasTouchingFloor = touchingFloor;
         if (Height < 0.8 && Math.Abs(Velocity) < 2 && Math.Abs(HorizontalVelocity) < 2) {
             Height = Velocity = 0; body.LinearVelocity = Vector2.Zero;
             body.Position = new Vector2(body.Position.X,0); flying = false;

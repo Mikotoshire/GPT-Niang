@@ -48,3 +48,7 @@ The old model reproduced a first-step snap to zero when released from 2–16 des
 Managed model/transform/native updates replace the per-frame PowerShell callback. A visible two-second HWND run at a 90-Hz scheduling target produced 151 updates, 74.4 effective updates/s, 131 changing native positions, 2.260-ms mean work, and seven script notifications. The actual installed follower run produced 201 updates at 73.6 updates/s and settled on the floor. Its maximum step was 48.28 ms; these are application measurements, not physical scan-out guarantees. A prior 60-Hz scheduling target measured only 55.1 updates/s in the real widget, so the target was raised with a bounded phase schedule.
 
 Node runtime: 84 passed, one platform fixture skipped. Model, motion tuning, floor contact, 17 WPF controller cases, menu, desktop, drag sizing and 240 display sizing checks passed. Existing private settings were restored after live trajectory measurement.
+
+## Horizontal collision retention
+
+`horizontal-impact.test.ps1` verifies both directions over repeated collisions, 0.82 horizontal retention once per landing, vertical stop with continuing slide, no repeated penalty during persistent contact, and eventual settling through Aether ground friction. Starting a ground slide does not count as a new falling impact. Original gravity and near-floor tests remain required.

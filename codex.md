@@ -76,3 +76,11 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tests/gravity-wpf.t
 模型与渲染器在运行时一起编译，引用 Aether、PresentationCore 和 WindowsBase；纯模型测试仍可独立编译模型。`Update-WidgetGravity` 保留为显式诊断/回归的单步桥接，不再绑定逐帧 Rendering。原生 `AnimationFrame()` 返回当前宿主与工作区裁切后的边界；委托调用不经过 PowerShell。保留现有镜像、重力、弹性和拖动设置。
 
 新增 `floor-contact.test.ps1` 与 `managed-frames.test.ps1`。后者使用真实图片和 HWND，验证有效帧调度、实际位置改变、平均步耗时、低频脚本通知和位置同步；`-Visible` 可短暂显示测试窗口。测试机器可见窗口约 74.4 Hz、平均步耗时约 2.26 ms；实际挂件目标 90 Hz、测得约 73.6 Hz，仍有单次约 48 ms 的系统/窗口开销峰值。因此不能宣称每一帧或所有设备均恒定超过 60 FPS。
+
+## 横向碰撞与滑行（2026-10-19）
+
+触地不清空横向速度。原先 0.65 的库仑摩擦会在较大竖直冲量下直接抵消横向动量；现在真正落地时的求解器接触摩擦为零，求解后仅把横向速度乘 `HorizontalRetention=0.82`（保留方向、每次损失 18%）。仍由 Aether 处理重力、碰撞与静止后的连续滑动摩擦，`GroundFriction=0.12`。
+
+`touchingFloor/wasTouchingFloor` 区分进入接触与持续接触；只在新的下落碰撞扣速一次。竖直弹跳停止后，只归零 Y，X 继续滑行；地面连续接触不重复乘 0.82。直接在地面开始水平滑动不计为一次下落碰撞。仅两轴速度都已很低时，原有睡眠阈值才结束物理循环。`FloorImpacts` 计数用于模型回归，每次 Reset 清零。
+
+`tests/horizontal-impact.test.ps1` 覆盖左右两方向、多次落地按比例损失、持续接触不重复扣速、竖直归零而横向继续、库摩擦最终停稳，以及地面直接滑动不误判碰撞。
