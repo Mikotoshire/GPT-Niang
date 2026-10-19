@@ -177,7 +177,8 @@ function Initialize-WidgetSettingsMenu {
   Add-SettingsDivider
   $script:settingsMenuUi.Updates=Add-SettingsSubmenu '更新' {
     $script:settingsMenuUi.UpdateVersion=Add-SettingsAction '当前版本' {} -ReturnItem;$script:settingsMenuUi.UpdateVersion.IsEnabled=$false
-    Add-SettingsAction '检查并更新' {Start-WidgetUpdate 'manual'}
+    $updateLabel=if($script:releaseUpdatesDisabled){'个人版更新说明'}else{'检查并更新'}
+    Add-SettingsAction $updateLabel {Start-WidgetUpdate 'manual'}
     $script:settingsMenuUi.AutoUpdate=Add-SettingsAction '自动更新' {param($sender,$event)Set-WidgetAutomaticUpdate ([bool]$sender.IsChecked)} -Checkable -ReturnItem
     $status=New-SettingsText '' 12 '#927AAB';$status.TextWrapping=[Windows.TextWrapping]::Wrap
     $script:settingsMenuUi.UpdateStatus=Add-SettingsPanel $status -Passive -ReturnItem

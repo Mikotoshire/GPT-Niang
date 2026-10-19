@@ -283,6 +283,8 @@ async function performUpdate(config,{mode='manual',agentDir=path.join(process.en
   const automatic=mode.startsWith('automatic');
   const stateFile=path.join(config.dataDir,'update-status.json');
   const state=read(stateFile)??{};const report=value=>atomicJson(stateFile,Object.assign(state,value));
+  const forkPolicy=read(path.join(config.appDir,'runtime','fork-policy.json'));
+  if(forkPolicy?.releaseUpdates===false){report({phase:'source',message:'个人维护版仅通过 Git 同步 Mikotoshire/GPT-Niang；原项目 Release 更新已禁用。'});return;}
   if(isGitCheckout(config.appDir)){report({phase:'source',message:'源码目录请使用 Git 更新，或另行安装 Release。'});return;}
   if(Date.now()<(state.retryAfterAt??0)){report({phase:'rate-limited',message:'GitHub 限流，请在允许重试的时间之后检查。'});return;}
   if(automatic && (!updatePreferences(config.dataDir).automatic || (mode==='automatic' && Date.now()<(state.nextCheckAt??0))))return;
