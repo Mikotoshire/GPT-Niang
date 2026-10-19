@@ -3,6 +3,7 @@ on:
   pull_request:
   push:
   workflow_dispatch:
+  workflow_call:
 permissions:
   contents: read
 jobs:
@@ -26,7 +27,7 @@ jobs:
           $fixture | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
       - name: Windows installer, lifecycle and WPF tests
         working-directory: gpt-niang-usage
-        run: npm run test:windows
+        run: npm run test:windows -- -AllowLimitedCompositor
       - name: Verify Windows packaging
         run: python scripts/build-release.py
   macos:

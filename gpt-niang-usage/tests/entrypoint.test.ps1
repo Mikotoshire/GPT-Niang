@@ -4,11 +4,14 @@ $source=Split-Path $PSScriptRoot -Parent
 $testRoot=Join-Path ([IO.Path]::GetTempPath()) ('gpt-niang-entrypoint-'+[Guid]::NewGuid().ToString('N'))
 $testApp=Join-Path $testRoot 'app'
 $testData=Join-Path $testRoot 'state'
-$files=@('widget.ps1','widget.xaml','runtime\start-widget.ps1','runtime\quotes.ps1','runtime\ui-settings.ps1','runtime\update-ui.ps1','runtime\update-common.ps1','runtime\color-theme.ps1','runtime\quote-layout.ps1','runtime\audio.ps1','runtime\host-layer.ps1','runtime\host-follow.ps1','runtime\host-ready.ps1','runtime\supervisor-task.ps1','assets\quotes.json','assets\quote-layouts.json','assets\gpt-dragon-niang-bust.png')
+# AI-generated test maintenance: follow the packaged dependency list, excluding
+# the machine-generated MCP configuration. Never copy private installation state.
+$requiredFiles=Get-Content -LiteralPath (Join-Path $source 'runtime\install-files.json') -Raw -Encoding UTF8|ConvertFrom-Json
+$files=@($requiredFiles|Where-Object{$_-ne '.mcp.json'})
 $directories=@($testRoot,$testApp,$testData,(Join-Path $testApp 'runtime'),(Join-Path $testApp 'assets'))
 try{
   foreach($directory in $directories){$null=New-Item -ItemType Directory -Path $directory}
-  foreach($file in $files){Copy-Item -LiteralPath (Join-Path $source $file) -Destination (Join-Path $testApp $file)}
+  foreach($file in $files){$target=Join-Path $testApp $file;$null=New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force;Copy-Item -LiteralPath (Join-Path $source $file) -Destination $target}
   $config=@{appDir=$testApp;dataDir=$testData;codexPath='unused-in-preview'}
   [IO.File]::WriteAllText((Join-Path $testApp 'installation.json'),($config|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
   $snapshot=@{ok=$true;queryOk=$true;observedAt=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();windows=@(@{minutes=300;used=25;remaining=75;resetsAt=$null},@{minutes=10080;used=10;remaining=90;resetsAt=$null})}
@@ -27,8 +30,5 @@ try{
   $resolved=[IO.Path]::GetFullPath($testRoot)
   $prefix=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')+'\'
   if(!$resolved.StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetFileName($resolved)-notlike 'gpt-niang-entrypoint-*'){throw 'Unsafe entrypoint test cleanup path.'}
-  foreach($file in ($files+@('installation.json','preview.png'))){$target=Join-Path $testApp $file;if(Test-Path -LiteralPath $target){Remove-Item -LiteralPath $target}}
-  $statusFile=Join-Path $testData 'status.json';if(Test-Path -LiteralPath $statusFile){Remove-Item -LiteralPath $statusFile}
-  [Array]::Reverse($directories)
-  foreach($directory in $directories){if(Test-Path -LiteralPath $directory){Remove-Item -LiteralPath $directory}}
+  if(Test-Path -LiteralPath $resolved){Remove-Item -LiteralPath $resolved -Recurse -Force}
 }

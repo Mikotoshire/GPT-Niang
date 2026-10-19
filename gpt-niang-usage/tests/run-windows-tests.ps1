@@ -1,4 +1,4 @@
-param([switch]$WidgetOnly,[switch]$SettingsMenuOnly,[string]$PreviewDirectory)
+param([switch]$WidgetOnly,[switch]$SettingsMenuOnly,[string]$PreviewDirectory,[switch]$AllowLimitedCompositor)
 $ErrorActionPreference='Stop'
 if($SettingsMenuOnly){
   $source=[IO.File]::ReadAllText((Join-Path $PSScriptRoot 'settings-menu.test.ps1'),[Text.Encoding]::UTF8)
@@ -15,6 +15,11 @@ $powerShell=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.ex
 if($LASTEXITCODE-ne 0){throw 'Plugin registration regression failed.'}
 foreach($name in @('horizontal-impact.test.ps1','floor-contact.test.ps1','managed-frames.test.ps1','motion-tuning.test.ps1','gravity.test.ps1','gravity-wpf.test.ps1','fork-policy.test.ps1','installation.test.ps1','update.test.ps1','lifecycle.test.ps1','entrypoint.test.ps1','quote-layout.test.ps1','size.test.ps1','display.test.ps1','desktop-mode.test.ps1','drag-sizing.test.ps1','settings-menu.test.ps1','host-ready.test.ps1')){
   if($name-eq 'settings-menu.test.ps1'){& $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File $PSCommandPath -SettingsMenuOnly}
+  elseif($name-eq 'managed-frames.test.ps1'){
+    $frameArgs=@('-NoProfile','-STA','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot $name))
+    if($AllowLimitedCompositor){$frameArgs+='-AllowLimitedCompositor'}
+    & $powerShell @frameArgs
+  }
   else {& $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot $name)}
   if($LASTEXITCODE-ne 0){throw "$name failed ($LASTEXITCODE)"}
 }

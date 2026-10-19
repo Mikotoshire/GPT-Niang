@@ -140,3 +140,11 @@ node gpt-niang-usage/runtime/control.mjs diagnostics 100
 发布前先提交并构建：`python scripts/build-release.py`，然后运行 `powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File gpt-niang-usage/tests/clean-install.integration.ps1 -Archive dist/gpt-niang-mikotoshire-v1.4.2-windows.zip`。该脚本验证 ZIP 清单后，只在临时副本改写环境绑定（状态目录、Startup、稳定代理、独立计划任务/互斥量及 CODEX_HOME）；使用真实安装和验证逻辑。实际创建任务和快捷方式、观察新鲜心跳及原生可见窗口、重装、卸载后按所有权清理。不会复制账号；不验证额度。需交互式 Windows 会话和已有 Codex/Node，本机隔离不能替代全新设备测试。
 
 发布工作流的 tested_commit 必须等于实际验收的完整提交号；源码变化后重新构建并验收。此人为确认约束不构成独立审查或测试真实性证明。原版 1.4.1 资产不替换，以保留追溯。
+
+## 1.4.2 后续完整 CI 修正（2026-10-19）
+
+已发布提交的 release.yml 成功不等于 test.yml 全部成功。该提交 test.yml 的 Windows 作业在 managed-frames.test.ps1 测得 57.35 Hz 后失败，后续检查没有执行，不能称全部 CI 通过。补跑还发现入口测试使用了缺少重力模块/依赖的旧文件清单；现在从 install-files.json 构造隔离副本，明确排除本机生成的 .mcp.json，不复制用户状态。
+
+帧率测试新增独立的 C# CompositionTarget.Rendering 供帧探针，分别输出 inputHz、renderHz、hardwareQualified。默认严格运行仍要求至少 100 帧且原 58 Hz 容差门槛；每步预算、实际位置变化、脚本通知频率和输入处理能力也继续检查。共享 CI 显式使用 -AllowLimitedCompositor：仅当供帧本身低于 58 Hz 时允许完成供帧跟踪功能测试，并输出 60-Hz hardware acceptance UNQUALIFIED 通知，不视为 60 Hz 性能验收。供帧足够而处理不足仍失败；本地严格模式与发布前硬件验证不得使用此开关。
+
+发布工作流通过 workflow_call 复用完整 test.yml，并将 full-runtime 加入发布依赖；因此完整 Windows/macOS 作业失败会阻止发布。现有 1.4.2 标签和安装包不替换。本次仅修改测试、门禁及文档，不改变动画或安装运行时代码。后续发布前除干净 ZIP 验收外，还须在交互式 Windows 会话运行不带宽容开关的完整 run-windows-tests.ps1，并核对全部关联工作流结果。不得仅以某一个绿色 workflow 代表全部通过。
