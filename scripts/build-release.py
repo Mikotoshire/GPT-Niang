@@ -8,7 +8,7 @@ from release_audit import read_tree, findings, validate_bundle
 
 PREFIX = "GPT-Niang-Mikotoshire/"
 EXTRAS = {
-    "LICENSE", "README.md", "gpt-niang-usage/LICENSE",
+    "LICENSE", "README.md", "AI-NOTICE.md", "gpt-niang-usage/LICENSE",
     ".agents/plugins/marketplace.json", "安装GPT娘.cmd", "打开GPT娘.cmd", "停用GPT娘.cmd",
     "检测套餐.cmd", "查看额度诊断.cmd", "docs/PRIVACY.md",
     "gpt-niang-usage/assets/CHARACTER-NOTICE.txt",
@@ -30,7 +30,7 @@ def build(root, output, ref="HEAD"):
     payload = {name: tree[name] for name in sorted(names)}
     version = validate_bundle(payload)
     notes = tree[f"docs/releases/{version}.md"].decode("utf-8")
-    payload["SOURCE.json"] = (json.dumps({"repository": "https://github.com/Mikotoshire/GPT-Niang", "commit": commit, "version": version}, indent=2) + "\n").encode()
+    payload["SOURCE.json"] = (json.dumps({"repository": "https://github.com/Mikotoshire/GPT-Niang", "commit": commit, "version": version, "aiGeneratedScope": "maintenance changes and added/rewritten documentation", "validationStatus": "insufficiently_validated"}, indent=2) + "\n").encode()
     payload["FILE-MANIFEST.json"] = (json.dumps({name: hashlib.sha256(data).hexdigest() for name, data in payload.items()}, indent=2, ensure_ascii=False) + "\n").encode()
     output.mkdir(parents=True, exist_ok=True)
     archive_name = f"gpt-niang-mikotoshire-v{version}-windows.zip"
@@ -48,9 +48,11 @@ def build(root, output, ref="HEAD"):
             if archive.read(PREFIX + name) != expected:
                 raise ValueError("Archive content mismatch: " + name)
     report = {"commit": commit, "version": version, "sourceFilesAudited": len(tree), "packagedFiles": len(payload),
+              "aiGeneratedMaintenanceChangesAndDocs": True, "validationStatus": "insufficiently_validated",
               "privacyFindings": 0, "source": "committed Git blobs; local worktree configuration excluded",
               "licenses": ["MIT code", "MS-PL Aether", "character noncommercial project-copy notice", "quotation MIT notice"],
-              "limitations": ["Pattern scanning is not a legal certification or proof of absence of every secret.",
+              "limitations": ["Maintenance changes and added/rewritten docs are AI-generated and insufficiently validated; this report is AI self-review, not independent human assurance.",
+                              "Pattern scanning is not a legal certification or proof of absence of every secret.",
                               "Clean-device installation and full logon/Codex restart remain user acceptance tests."]}
     report_path = output / "RELEASE-AUDIT.json"
     report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")

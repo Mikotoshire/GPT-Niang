@@ -7,7 +7,7 @@ import {requestRefresh} from './refresh-client.mjs';
 import {pluginVersion} from './metadata.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const send=m=>process.stdout.write(JSON.stringify(m)+'\n');
-const tool={name:'get_codex_usage',description:'自动识别当前 ChatGPT 套餐，读取 Codex 实际返回的额度窗口（如 5 小时、每周、30 天），返回已用、剩余百分比与北京时间重置时间。只读，不创建聊天或调用模型。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:true}};
+const tool={name:'get_codex_usage',description:'本维护版的修改及文档由 AI 生成，未经充分验证。自动识别当前 ChatGPT 套餐，读取 Codex 实际返回的额度窗口（如 5 小时、每周、30 天），返回已用、剩余百分比与北京时间重置时间。只读，不创建聊天或调用模型。',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:true}};
 async function handle(m){
   if(!m || typeof m!=='object' || Array.isArray(m) || typeof m.method!=='string'){send({jsonrpc:'2.0',id:null,error:{code:-32600,message:'Invalid Request'}});return;}
   if(m.id===undefined)return;

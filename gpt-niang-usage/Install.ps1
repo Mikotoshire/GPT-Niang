@@ -1,5 +1,6 @@
 param([switch]$CheckOnly,[string]$UpdateToken)
 $ErrorActionPreference='Stop'
+Write-Warning 'AI NOTICE: Maintenance changes and added/rewritten docs are AI-generated and insufficiently validated. Tests are limited and do not guarantee correctness, stability or security. See the included AI-NOTICE.md before use.'
 $appDir=$PSScriptRoot
 . (Join-Path $appDir 'runtime\supervisor-task.ps1')
 . (Join-Path $appDir 'runtime\update-common.ps1')

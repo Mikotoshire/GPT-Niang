@@ -1,7 +1,7 @@
 {
   "name": "gpt-niang-local",
   "interface": {
-    "displayName": "GPT娘 · Mikotoshire 维护版（本地安装）"
+    "displayName": "GPT娘 · AI生成修改 / 未经充分验证"
   },
   "plugins": [
     {

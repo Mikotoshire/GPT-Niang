@@ -1,5 +1,7 @@
 # Codex 维护笔记
 
+> **AI 生成与验证声明：** 本维护分支相对上游的修改，以及新增或改写的文档，均由 AI 生成，且未经充分验证或独立人工审查。现有自动化测试与 AI 自查仅覆盖有限场景，不能保证正确性、稳定性、安全性或完整合规性，可能存在未发现的问题。仅供试用，请自行评估并备份重要数据。此声明不将上游原作或第三方依赖归为 AI 生成，也不改变原许可和权利归属。
+
 这是 `Mikotoshire/GPT-Niang` 的 Windows 个人维护分支。先读 `AGENTS.md` 和 `docs/PERSONAL-FORK.md`。保留上游 MIT、角色素材来源/非商业范围、语录许可；不得上传账号和运行状态。发布渠道为个人仓库 `origin/main`，原项目的 Release 更新保持禁用。
 
 ## 重力模式（2026-10-19）
@@ -124,3 +126,7 @@ node gpt-niang-usage/runtime/control.mjs diagnostics 100
 输出 ZIP、SHA256SUMS、RELEASE-AUDIT 摘要和发布说明；包内 SOURCE.json 指明源码提交，FILE-MANIFEST.json 记录文件哈希。ZIP 时间固定，重复构建应逐字节相同。`test_release.py` 使用虚构 Git 仓库和受污染的工作区验证不会打包机器配置；已提交的坏模板则拒绝打包。扫描结果仅输出文件名/规则，不回显潜在秘密。
 
 发布前运行 Node、Windows 关键回归、Python 打包测试和压缩包内容检查；从压缩包解压的副本检查必需文件、版本、PowerShell 语法和 Node 模块。记录验证限制，不声称未经执行的新设备完整安装已通过。保持安装配置、账户数据、偏好、额度和真实诊断本地保存。发布只上传本次审查的 ZIP、SHA256SUMS、RELEASE-AUDIT；不上传工作目录或 Git bundle。浏览器文件上传受限时，允许经本次显式发布授权手动触发 GitHub Actions：只在本仓库 main、通过 Windows 验证后，以短期仓库令牌构建并创建新的预发布；不覆盖已有标签或资产。
+
+## AI 来源声明（1.4.1）
+
+维护版相对上游的修改与新增/改写文档均由 AI 生成，未经充分验证或独立人工审查。统一声明见 AI-NOTICE.md；显示于主页、插件信息、安装输出、设置菜单和发布说明，并随包分发。构建器拒绝缺少声明的发行包，SOURCE.json 与 RELEASE-AUDIT.json 明确 AI 范围及 insufficiently_validated。旧 Release 说明补充声明，但不覆盖旧标签或附件；1.4.1 提供内置声明的新包。声明不取代测试记录、不改变许可，也不代表上游或第三方库由 AI 生成。

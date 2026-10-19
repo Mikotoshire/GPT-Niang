@@ -1,10 +1,12 @@
 # GPT娘 · Mikotoshire Windows 维护版
 
+> **AI 生成与验证声明：** 本维护分支相对上游的修改，以及新增或改写的文档，均由 AI 生成，且未经充分验证或独立人工审查。现有自动化测试与 AI 自查仅覆盖有限场景，不能保证正确性、稳定性、安全性或完整合规性，可能存在未发现的问题。仅供试用，请自行评估并备份重要数据。此声明不将上游原作或第三方依赖归为 AI 生成，也不改变原许可和权利归属。
+
 基于 [T7moris/GPT-Niang](https://github.com/T7moris/GPT-Niang) v1.3.4 的非官方维护版本。代码保留 MIT 与原作者署名；角色素材有独立使用范围。本维护版与 OpenAI、上游作者不存在官方发布关系。
 
 ## 下载与安装
 
-1. 在[本仓库 Releases](https://github.com/Mikotoshire/GPT-Niang/releases) 下载 `gpt-niang-mikotoshire-v1.4.0-windows.zip`；首版标记为 Pre-release，供非商业小范围试用。
+1. 在[本仓库 Releases](https://github.com/Mikotoshire/GPT-Niang/releases) 下载 `gpt-niang-mikotoshire-v1.4.1-windows.zip`；首版标记为 Pre-release，供非商业小范围试用。
 2. 需要 Windows 10/11、Node.js 20+ 和已用你自己的 ChatGPT 账号登录的 Codex 桌面端。Node.js 请从 [nodejs.org](https://nodejs.org/) 获取。安装包不包含 Node.js，也不需要 Python、Git 或开发工具。
 3. 完整解压到准备长期保留的文件夹，再双击根目录 `安装GPT娘.cmd`。安装会注册本地插件、当前用户的登录启动任务和启动快捷方式。插件后台随 Codex 窗口出现显示；请勿直接在 ZIP 内运行或安装后移动文件夹。
 4. 手动打开用 `打开GPT娘.cmd`。停止使用并移除启动与插件注册用 `停用GPT娘.cmd`，偏好数据会保留。

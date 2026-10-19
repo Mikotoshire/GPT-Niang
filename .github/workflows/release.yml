@@ -69,7 +69,7 @@ jobs:
             echo "Release already exists; refusing to replace tags or assets." >&2
             exit 1
           fi
-          gh release create "$tag" "dist/gpt-niang-mikotoshire-v${version}-windows.zip" dist/SHA256SUMS.txt dist/RELEASE-AUDIT.json --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "GPT娘 · Mikotoshire 维护版 ${version} · Windows 测试版" --notes-file dist/release-notes.md --prerelease --draft
+          gh release create "$tag" "dist/gpt-niang-mikotoshire-v${version}-windows.zip" dist/SHA256SUMS.txt dist/RELEASE-AUDIT.json --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "GPT娘 · Mikotoshire 维护版 ${version} · AI生成修改，未经充分验证" --notes-file dist/release-notes.md --prerelease --draft
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
 # Only a manually dispatched run on this repository's main can publish.
 # The runner uses the short-lived repository token, never personal credentials.

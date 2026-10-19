@@ -1,5 +1,7 @@
 # Personal GPT-Niang maintenance
 
+> **AI 生成与验证声明：** 本维护分支相对上游的修改，以及新增或改写的文档，均由 AI 生成，且未经充分验证或独立人工审查。现有自动化测试与 AI 自查仅覆盖有限场景，不能保证正确性、稳定性、安全性或完整合规性，可能存在未发现的问题。仅供试用，请自行评估并备份重要数据。此声明不将上游原作或第三方依赖归为 AI 生成，也不改变原许可和权利归属。
+
 This is Mikotoshire's personal Windows fork. Read `docs/PERSONAL-FORK.md` before changing deployment or update behavior.
 For current interaction architecture, physics constants and regression checks, also read `codex.md`.
 
@@ -13,3 +15,5 @@ For current interaction architecture, physics constants and regression checks, a
 - Windows startup uses OS-resolved physical paths to avoid MSIX AppData redirection. A registered/running task alone is insufficient: verify a fresh supervisor heartbeat and visible widget. Preserve binding ownership and legacy-task migration checks.
 
 - This repository is public. Inspect every unpublished commit before synchronization for credentials, account/quota/session data and personal machine paths. Keep real diagnostics and settings local; use fictional test data. Verify any vendored binary against its documented public source/hash and retain its license.
+
+- Keep AI-NOTICE.md and visible AI-generation / insufficient-validation notices in documentation, plugin metadata, installer, menu and releases. Historical tests and AI self-review are not sufficient validation or independent human assurance. Do not attribute upstream work or third-party dependencies to AI.

@@ -28,6 +28,9 @@ $script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStreng
 $script:colorMode='mixed';$script:colorChance=0.5;$script:colorTextChance=3;$script:colorPaused=$false
 try{
   Initialize-WidgetSettingsMenu
+  Assert-Equal ($script:context.Items.Contains($script:settingsMenuUi.AINotice)) $true 'AI notice appears in the main settings menu'
+  Assert-Equal $script:settingsMenuUi.AINotice.IsEnabled $false 'AI notice cannot trigger an action'
+  Assert-Equal ($script:settingsMenuUi.AINotice.ToolTip.Contains('均由 AI 生成')) $true 'AI scope and validation warning is available in the tooltip'
   Assert-Equal ($script:context.Items.Contains($script:settingsMenuUi.Gravity)) $true 'Gravity mode is a top-level setting'
   Assert-Equal ($script:context.Items.Contains($script:settingsMenuUi.Appearance)) $true 'Appearance remains at the same menu level'
   $script:settingsMenuUi.Gravity.IsChecked=$true

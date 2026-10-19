@@ -1,9 +1,9 @@
 {
   "name": "gpt-niang-usage",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "private": true,
   "type": "module",
-  "description": "GPT娘额度挂件 · Mikotoshire Windows 维护版",
+  "description": "AI 生成修改、未经充分验证的 GPT娘 Windows 维护版",
   "scripts": {
     "test": "node --test tests/*.test.mjs",
     "test:windows": "powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tests/run-windows-tests.ps1"

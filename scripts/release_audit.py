@@ -69,6 +69,8 @@ def findings(files):
 
 
 def validate_bundle(files):
+    if "AI-NOTICE.md" not in files or b"insufficiently validated" not in files["AI-NOTICE.md"]:
+        raise ValueError("Required AI generation and insufficient-validation notice is missing")
     issues = findings(files)
     if issues:
         raise ValueError("Release privacy checks failed: " + repr(issues))

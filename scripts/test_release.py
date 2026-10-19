@@ -22,6 +22,10 @@ class ReleaseTests(unittest.TestCase):
             self.assertTrue(result)
             self.assertNotIn(secret.decode(), repr(result))
 
+    def test_ai_notice_is_mandatory(self):
+        with self.assertRaisesRegex(ValueError, "AI generation"):
+            validate_bundle({})
+
     def test_unknown_binary_and_image_metadata_are_blocked(self):
         self.assertTrue(findings({"unknown.dll": b"binary"}))
         self.assertTrue(findings({"picture.png": b"\x89PNG\r\n\x1a\n" + b"\0\0\0\x04tEXtdata0000"}))
@@ -32,6 +36,7 @@ class ReleaseTests(unittest.TestCase):
             required = ["package.json", ".codex-plugin/plugin.json", ".mcp.json",
                         "runtime/install-files.json", "runtime/fork-policy.json"]
             files = {name: b"fixture\n" for name in builder.EXTRAS}
+            files["AI-NOTICE.md"] = b"Maintenance changes and docs are AI-generated and insufficiently validated.\n"
             files.update({
                 "gpt-niang-usage/package.json": b'{"version":"1.4.0"}',
                 "gpt-niang-usage/.codex-plugin/plugin.json": b'{"version":"1.4.0"}',
@@ -56,8 +61,11 @@ class ReleaseTests(unittest.TestCase):
             second, _ = builder.build(root, root / "second")
             self.assertEqual(first.read_bytes(), second.read_bytes())
             self.assertEqual(report["privacyFindings"], 0)
+            self.assertTrue(report["aiGeneratedMaintenanceChangesAndDocs"])
+            self.assertEqual(report["validationStatus"], "insufficiently_validated")
             with zipfile.ZipFile(first) as archive:
                 self.assertEqual(archive.read(builder.PREFIX + "gpt-niang-usage/.mcp.json"), files["gpt-niang-usage/.mcp.json"])
+                self.assertIn(b"insufficiently validated", archive.read(builder.PREFIX + "AI-NOTICE.md"))
                 self.assertFalse(any("installation.json" in name for name in archive.namelist()))
                 for name in archive.namelist():
                     self.assertNotIn(b"machine-specific-configuration", archive.read(name))

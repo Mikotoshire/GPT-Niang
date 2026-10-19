@@ -112,6 +112,11 @@ function Initialize-WidgetSettingsMenu {
   $script:context.Template=[Windows.Markup.XamlReader]::Parse(@'
 <ControlTemplate xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" TargetType="ContextMenu"><Border Background="#FFFCFF" BorderBrush="#DFD1EC" BorderThickness="1" CornerRadius="12" Padding="9,8"><ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False"><ItemsPresenter/></ScrollViewer></Border></ControlTemplate>
 '@)
+  $script:settingsMenuUi.AINotice=Add-SettingsAction 'AI 生成修改 · 未经充分验证' {} -Description '测试和 AI 自查仅覆盖有限场景，仅供试用' -ReturnItem
+  $script:settingsMenuUi.AINotice.IsEnabled=$false
+  $script:settingsMenuUi.AINotice.ToolTip='本维护分支相对上游的修改及新增或改写文档均由 AI 生成，未经充分验证或独立人工审查；不能保证正确性、稳定性或安全性。'
+  [Windows.Controls.ToolTipService]::SetShowOnDisabled($script:settingsMenuUi.AINotice,$true)
+  Add-SettingsDivider
   $script:settingsMenuUi.Bubble=Add-SettingsAction '查看额度' {if(!$script:collapsed -and $script:bubbleMode-eq 'quota'){Hide-Quota}else{Show-Quota}} -ReturnItem
   $script:settingsMenuUi.Quote=Add-SettingsAction '换一句台词' {if($script:collapsed){Show-Quota};Switch-Scene 'quote'} -ReturnItem
   Add-SettingsAction '刷新额度' {Request-Refresh}
