@@ -161,14 +161,35 @@ test('worker ownership recovers after a force-killed worker leaves stale files',
     };
     const waitForOwner=async child=>{
       const deadline=Date.now()+4000;
-      while(healthyWorker(dir)?.pid!==child.pid && Date.now()<deadline)await pause(20);
+      while(healthyWorker(dir)?.pid!==child.pid && Date.now()<deadline){
+        assert.equal(child.exitCode,null,'Fixture worker exited before publishing health');
+        assert.equal(child.signalCode,null,'Fixture worker was signalled before publishing health');
+        await pause(20);
+      }
       assert.equal(healthyWorker(dir)?.pid,child.pid);
       return readJson(path.join(dir,'worker.lock')).token;
     };
     const first=start(),firstToken=await waitForOwner(first);
     const crashed=once(first,'exit');first.kill(process.platform==='darwin'?'SIGKILL':'SIGTERM');await crashed;
     assert.equal(healthyWorker(dir),null);
-    const second=start(),secondToken=await waitForOwner(second);
+    // AI-generated test maintenance; see AI-NOTICE.md. Exercise the actual
+    // recovery manager, which retries a worker that could not claim the pipe.
+    // A raw one-shot spawn is not the production crash-recovery contract.
+    let attempts=0;
+    const startRecovery=()=>{
+      if(attempts++===0){
+        const unavailable=spawn(process.execPath,['-e','process.exit(0)'],{windowsHide:true,stdio:'ignore'});
+        children.push(unavailable);return unavailable;
+      }
+      return start();
+    };
+    await requestRefresh({dataDir:dir,codexPath:path.join(dir,'missing-codex.exe')},configPath,{startWorker:startRecovery,timeoutMs:8000,restartIntervalMs:100,pollMs:20});
+    const recovered=healthyWorker(dir);
+    assert.ok(recovered,'The real refresh manager must restore a healthy worker');
+    assert.ok(attempts>=2,'Recovery must retry the deliberately unavailable first replacement');
+    const second=children.find(child=>child.pid===recovered.pid);
+    assert.ok(second,'The recovered owner must be one of this test\'s children');
+    const secondToken=readJson(path.join(dir,'worker.lock')).token;
     assert.notEqual(firstToken,secondToken);
     const stopped=once(second,'exit');fs.writeFileSync(path.join(dir,'stop.flag'),'test-stop');await stopped;
   } finally {
