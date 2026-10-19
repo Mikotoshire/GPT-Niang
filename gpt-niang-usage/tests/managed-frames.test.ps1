@@ -133,9 +133,11 @@ try{
   # guarantee to process every compositor callback above the required rate.
   $inputHz=$probe.Fps;$expectedHz=[Math]::Min(60,$inputHz)
   if($probe.Count-lt 10 -or $loop.Fps-lt $expectedHz*0.95 -or $loop.Fps-gt 95){throw ('Render processing lost input cadence: input='+$inputHz+' processed='+$loop.Fps)}
-  $hardwareQualified=$loop.FrameCount-ge 100 -and $loop.Fps-ge 58
+  # A hosted source below the requested 60 Hz cannot qualify the hardware,
+  # even when it happens to fit the local measurement's 58-Hz tolerance.
+  $hardwareQualified=$loop.FrameCount-ge 100 -and $loop.Fps-ge 58 -and (!$AllowLimitedCompositor -or $inputHz-ge 60)
   if(!$hardwareQualified){
-    if(!$AllowLimitedCompositor -or $inputHz-ge 58){throw ('60-Hz render cadence missed: input='+$inputHz+' processed='+$loop.Fps)}
+    if(!$AllowLimitedCompositor -or $inputHz-ge 60){throw ('60-Hz render cadence missed: input='+$inputHz+' processed='+$loop.Fps)}
     Write-Output ('::notice::60-Hz hardware acceptance UNQUALIFIED: hosted compositor input='+[Math]::Round($inputHz,2)+' Hz. Input tracking is tested; a local strict run is still required before release.')
   }
   # Keep the 5-ms CPU budget. SetWindowPos can wait for composition without using
