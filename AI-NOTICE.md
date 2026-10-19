@@ -4,4 +4,4 @@
 
 ## Scope and validation
 
-The maintenance changes relative to upstream, and all added or rewritten documentation in this fork, are AI-generated and have not been sufficiently validated or independently reviewed by a human. Automated tests and AI self-review cover limited scenarios and do not guarantee correctness, stability, security or full compliance. Undiscovered problems may remain. This notice does not attribute upstream work or third-party dependencies to AI and does not change their licenses or ownership.
+The maintenance changes relative to upstream, and all added or rewritten documentation in this fork, are AI-generated and insufficiently validated, with no independent human review. Automated tests and AI self-review cover limited scenarios and do not guarantee correctness, stability, security or full compliance. Undiscovered problems may remain. This notice does not attribute upstream work or third-party dependencies to AI and does not change their licenses or ownership.
