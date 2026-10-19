@@ -10,6 +10,6 @@ For current interaction architecture, physics constants and regression checks, a
 - Keep fork-policy release updates disabled. Do not add background Git pulls or automatically run remote code. Synchronize during an authorized development session.
 - Never commit installation.json, credentials, account/session files, quota snapshots or private preferences. Installation generates a machine-specific `.mcp.json`; its local skip-worktree flag is intentional. Handle template changes explicitly.
 - Run Node tests, targeted Windows checks and reload/health checks appropriate to the actual change. Windows PowerShell 5.1 may require explicit UTF-8 loading of test scripts.
-- Windows scheduler startup error `0x8007010B` is a known local limitation; a registered task is not evidence of a running task. Preserve working direct-launch behavior.
+- Windows startup uses OS-resolved physical paths to avoid MSIX AppData redirection. A registered/running task alone is insufficient: verify a fresh supervisor heartbeat and visible widget. Preserve binding ownership and legacy-task migration checks.
 
 - This repository is public. Inspect every unpublished commit before synchronization for credentials, account/quota/session data and personal machine paths. Keep real diagnostics and settings local; use fictional test data. Verify any vendored binary against its documented public source/hash and retain its license.

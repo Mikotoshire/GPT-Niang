@@ -20,7 +20,7 @@ function Get-WidgetInstallPreflight {
   $dataDir=Join-Path $localData 'GPTNiangUsage\state'
   $previousConfig=Join-Path $appDir 'installation.json'
   if(Test-Path -LiteralPath $previousConfig){$previous=Read-WidgetUpdateJson $previousConfig;$dataDir=Get-WidgetInstallationDataDir -AppDir $appDir -Configuration $previous}
-  $dataDir=[IO.Path]::GetFullPath($dataDir).TrimEnd('\')
+  $dataDir=(Resolve-WidgetPhysicalPath $dataDir).TrimEnd('\')
   if($appDir-ieq $dataDir -or $appDir.StartsWith($dataDir+'\',[StringComparison]::OrdinalIgnoreCase) -or $dataDir.StartsWith((Join-Path $appDir 'runtime')+'\',[StringComparison]::OrdinalIgnoreCase) -or $dataDir-ieq (Join-Path $appDir 'runtime')){throw 'Data directory overlaps program files.'}
   $nodeCommand=Get-Command node.exe -ErrorAction SilentlyContinue
   if(!$nodeCommand){throw 'Node.js 20 or later is required. Install Node.js and reopen the installer.'}

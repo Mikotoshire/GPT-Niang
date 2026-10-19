@@ -50,7 +50,7 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tests/gravity-wpf.t
 
 测试通过后提交、合并 `main`、同步个人 GitHub、保存 bundle 并重载挂件。不要强制推送或丢弃用户修改。若命令行推送认证仍不可用，使用已连接的 GitHub 工具发布提交；重新获取远端后，仅在源码树完全一致且已备份的前提下对齐本地记录。
 
-当前功能仅在 Windows 验证。已有 Task Scheduler 错误 `0x8007010B` 与本功能无关，保留已可工作的直接 supervisor 启动方式。
+当前功能仅在 Windows 验证。早期 Task Scheduler 错误 `0x8007010B` 已在后述 Windows 自启动修复中处理。
 
 ## 公开仓库隐私
 
@@ -102,3 +102,15 @@ node gpt-niang-usage/runtime/control.mjs diagnostics 100
 命令仅查看日志，不发起查询，也不返回旧 `status` 命令中的真实额度。也可以双击根目录的 `查看额度诊断.cmd`。排查时先读取此接口，关注最近 worker 启动、超时所在阶段、耗时接近 timeoutMs 及是否恢复；必要时再在本机检查 worker 状态和 Codex 运行状态。不要将真实日志提交或附加到公开 issue。日志轮转后较旧事件会被覆盖。
 
 验证：`tests/diagnostics.test.mjs` 覆盖白名单脱敏、轮转、损坏行、不可写目录、RPC 阶段超时、诊断回调异常不破坏查询，以及真实 worker 的失败后恢复。`runtime/install-files.json` 包含诊断模块，避免迁移/更新后缺失依赖。
+
+## Windows 自启动与 MSIX 路径（2026-10-19）
+
+根因：在打包版 Codex 内创建的逻辑 LocalAppData 路径会被 MSIX 重定向，计划任务在包外看不到该逻辑目录。原任务首先因工作目录不存在报 `0x8007010B`；仅改成系统目录后，WScript 仍因找不到脚本返回 1。必须同时修正启动器及共享状态路径，不能只凭任务 Running 判断成功。
+
+`Resolve-WidgetPhysicalPath` 用 CreateFile/GetFinalPathNameByHandle 读取现有文件/目录的实际路径，支持目录、长路径前缀和 UNC；不存在的路径在 preflight 中保持原样。安装器在创建目录后再次解析，将实际 `dataDir`、`updateAgent` 保存在本机配置和稳定绑定。`Get-WidgetUpdateAgentDir` 在稳定组件中以自身目录为准，在程序 runtime 中读取经过账户/安装绑定校验的已保存目录，使包内和包外访问同一状态，不复制或清空偏好。
+
+计划任务使用 Windows System32 为工作目录，仍以当前用户 Interactive/Limited 运行，参数只允许一个完整引用的启动脚本路径；身份检查兼容旧逻辑路径及其实际别名，拒绝其他脚本/额外参数/不同账户或绑定。手动打开旧安装会迁移旧工作目录。启动快捷方式也使用实际入口和系统工作目录。后台由计划任务独立启动，持续监测 Codex 窗口；Codex 暂时退出不应终止任务。
+
+排查顺序：检查任务执行路径及最后结果，再检查 `supervisor-status.json` 的时间、进程、widgetRunning，最后核对 `presence.json` 的新鲜度与 visible。启动器错误在本机 `update-diagnostic.txt`，任务修改前的 XML 备份仅在本机状态目录。不要公开真实配置、任务 XML 或诊断中的机器路径。
+
+新增 `startup-directory.test.ps1` 覆盖 OS 实际路径、旧任务迁移、系统工作目录、严格参数和未知目录拒绝；安装/更新回归保留账户及路径绑定检查。实机验收必须由计划任务启动后同时出现新鲜后台心跳、GUI 心跳与可见挂件；未做注销或关闭 Codex 的测试，不宣称已完成这些测试。

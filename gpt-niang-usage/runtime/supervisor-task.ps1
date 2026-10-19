@@ -1,3 +1,33 @@
+# Resolve MSIX redirected paths before sharing them with Windows Task Scheduler.
+function Resolve-WidgetPhysicalPath([string]$Path) {
+  $full=[IO.Path]::GetFullPath($Path)
+  if(!(Test-Path -LiteralPath $full)){return $full}
+  if(!('GptWidgetPhysicalPath' -as [type])){
+    Add-Type -TypeDefinition @'
+using System;using System.Text;using System.Runtime.InteropServices;using Microsoft.Win32.SafeHandles;
+public static class GptWidgetPhysicalPath {
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]static extern SafeFileHandle CreateFile(string path,uint access,uint share,IntPtr security,uint creation,uint flags,IntPtr template);
+ [DllImport("kernel32.dll",CharSet=CharSet.Unicode,SetLastError=true)]static extern uint GetFinalPathNameByHandle(SafeFileHandle handle,StringBuilder text,uint size,uint flags);
+ public static string Resolve(string path){
+  using(var handle=CreateFile(path,0,7,IntPtr.Zero,3,0x02000000,IntPtr.Zero)){
+   if(handle.IsInvalid)throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+   var text=new StringBuilder(32768);uint count=GetFinalPathNameByHandle(handle,text,(uint)text.Capacity,0);
+   if(count==0||count>=text.Capacity)throw new System.ComponentModel.Win32Exception(Marshal.GetLastWin32Error());
+   string value=text.ToString();
+   if(value.StartsWith(@"\\?\UNC\"))return @"\\"+value.Substring(8);
+   return value.StartsWith(@"\\?\")?value.Substring(4):value;
+  }
+ }
+}
+'@
+  }
+  return [GptWidgetPhysicalPath]::Resolve($full)
+}
+function Resolve-WidgetQuotedPath([string]$Argument){
+  if($Argument.Length-lt 3 -or !$Argument.StartsWith('"') -or !$Argument.EndsWith('"') -or $Argument.Substring(1,$Argument.Length-2).Contains('"')){return ''}
+  return Resolve-WidgetPhysicalPath $Argument.Substring(1,$Argument.Length-2)
+}
+
 function Get-WidgetInstallationDataDir {
   param([Parameter(Mandatory=$true)][string]$AppDir,[Parameter(Mandatory=$true)]$Configuration)
   if(![string]$Configuration.appDir -or ![string]$Configuration.dataDir){throw 'Installation paths are missing.'}
@@ -18,9 +48,9 @@ function Test-WidgetStartupShortcutIdentity {
   $expectedExecute=Join-Path $env:WINDIR 'System32\wscript.exe'
   $expectedArguments='"'+(Join-Path ([IO.Path]::GetFullPath($AppDir)) 'launch.vbs')+'"'
   $stable=if(Get-Command Get-WidgetUpdateAgentDir -ErrorAction SilentlyContinue){Get-WidgetUpdateAgentDir}else{Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'GPTNiangUsage\update-agent'}
-  $stableArguments='"'+(Join-Path $stable 'agent-launch.vbs')+'"'
   $argumentsMatch=[string]$Shortcut.Arguments-ieq $expectedArguments
-  if([string]$Shortcut.Arguments-ieq $stableArguments){
+  try{$installed=Get-WidgetSupervisorInfo $AppDir;$stable=$installed.AgentDir}catch{}
+  if((Resolve-WidgetQuotedPath ([string]$Shortcut.Arguments))-ieq (Resolve-WidgetPhysicalPath (Join-Path $stable 'agent-launch.vbs'))){
     try{$binding=Get-Content -LiteralPath (Join-Path $stable 'binding.json') -Raw -Encoding UTF8|ConvertFrom-Json
       $argumentsMatch=$binding.sid-eq [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -and [IO.Path]::GetFullPath($binding.appDir)-ieq [IO.Path]::GetFullPath($AppDir)
     }catch{$argumentsMatch=$false}
@@ -56,12 +86,19 @@ function Get-WidgetSupervisorInfo {
   if(!$config){$config=Get-Content -LiteralPath (Join-Path $root 'installation.json') -Raw -Encoding UTF8 -ErrorAction Stop|ConvertFrom-Json}
   if(![string]$config.appDir -or ![string]$config.dataDir){throw 'Installation paths are missing.'}
   if([IO.Path]::GetFullPath([string]$config.appDir).TrimEnd('\')-ine $root){throw 'Supervisor installation identity mismatch.'}
-  $data=[IO.Path]::GetFullPath([string]$config.dataDir)
+  $data=Resolve-WidgetPhysicalPath ([string]$config.dataDir)
   $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
   $agent=if(Get-Command Get-WidgetUpdateAgentDir -ErrorAction SilentlyContinue){Get-WidgetUpdateAgentDir}else{Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'GPTNiangUsage\update-agent'}
-  if($config.updateAgent -and [IO.Path]::GetFullPath($config.updateAgent)-ine $agent){throw 'Stable launcher path mismatch.'}
+  if($config.updateAgent){
+    $configuredAgent=Resolve-WidgetPhysicalPath $config.updateAgent
+    if($configuredAgent-ine (Resolve-WidgetPhysicalPath $agent)){
+      $binding=Get-Content -LiteralPath (Join-Path $configuredAgent 'binding.json') -Raw -Encoding UTF8|ConvertFrom-Json
+      if($binding.sid-ne $sid -or [IO.Path]::GetFullPath($binding.appDir)-ine $root -or (Resolve-WidgetPhysicalPath $binding.dataDir)-ine $data){throw 'Stable launcher path mismatch.'}
+    }
+    $agent=$configuredAgent
+  }
   $stable=[bool]$config.updateAgent
-  [pscustomobject]@{AppDir=$root;DataDir=$data;Sid=$sid;TaskName=('GPT Niang Usage - '+$sid);TaskPath='\';Execute=(Join-Path $env:WINDIR 'System32\wscript.exe');Arguments=$(if($stable){'"'+(Join-Path $agent 'agent-supervisor.vbs')+'"'}else{'"'+(Join-Path $root 'supervisor.vbs')+'"'});WorkingDirectory=$(if($stable){$agent}else{$root});AgentDir=$agent}
+  [pscustomobject]@{AppDir=$root;DataDir=$data;Sid=$sid;TaskName=('GPT Niang Usage - '+$sid);TaskPath='\';Execute=(Join-Path $env:WINDIR 'System32\wscript.exe');Arguments=$(if($stable){'"'+(Join-Path $agent 'agent-supervisor.vbs')+'"'}else{'"'+(Join-Path $root 'supervisor.vbs')+'"'});WorkingDirectory=$(if($stable){$agent}else{$root});AgentDir=$agent;TaskWorkingDirectory=(Join-Path $env:WINDIR 'System32')}
 }
 
 function Resolve-WidgetSupervisorSid([string]$Identity){
@@ -77,12 +114,11 @@ function Assert-WidgetSupervisorTaskIdentity {
   $actions=@($Task.Actions)
   if($actions.Count-ne 1){throw 'Supervisor task action count mismatch.'}
   $action=$actions[0]
-  $legacyArguments='"'+(Join-Path $Info.AppDir 'supervisor.vbs')+'"'
-  $legacy=[string]$action.Arguments-ieq $legacyArguments -and [IO.Path]::GetFullPath([string]$action.WorkingDirectory).TrimEnd('\')-ieq $Info.AppDir
-  $current=[string]$action.Arguments-ieq $Info.Arguments -and [IO.Path]::GetFullPath([string]$action.WorkingDirectory).TrimEnd('\')-ieq $Info.WorkingDirectory
+  $legacy=(Resolve-WidgetQuotedPath ([string]$action.Arguments))-ieq (Join-Path $Info.AppDir 'supervisor.vbs') -and (Resolve-WidgetPhysicalPath ([string]$action.WorkingDirectory)).TrimEnd('\')-ieq $Info.AppDir
+  $current=(Resolve-WidgetQuotedPath ([string]$action.Arguments))-ieq (Resolve-WidgetQuotedPath $Info.Arguments) -and ((Resolve-WidgetPhysicalPath ([string]$action.WorkingDirectory)).TrimEnd('\')-ieq $Info.WorkingDirectory -or [IO.Path]::GetFullPath([string]$action.WorkingDirectory).TrimEnd('\')-ieq $Info.TaskWorkingDirectory)
   if($current -and $Info.WorkingDirectory-ine $Info.AppDir){
     $binding=Get-Content -LiteralPath (Join-Path $Info.AgentDir 'binding.json') -Raw -Encoding UTF8|ConvertFrom-Json
-    if($binding.sid-ne $Info.Sid -or [IO.Path]::GetFullPath($binding.appDir)-ine $Info.AppDir -or [IO.Path]::GetFullPath($binding.dataDir)-ine $Info.DataDir){throw 'Stable task binding mismatch.'}
+    if($binding.sid-ne $Info.Sid -or [IO.Path]::GetFullPath($binding.appDir)-ine $Info.AppDir -or (Resolve-WidgetPhysicalPath $binding.dataDir)-ine $Info.DataDir){throw 'Stable task binding mismatch.'}
   }
   if([IO.Path]::GetFullPath([string]$action.Execute)-ine $Info.Execute -or !($legacy -or $current)){throw 'Supervisor task action path mismatch.'}
 }
@@ -141,7 +177,7 @@ function Disable-WidgetSupervisor {
 
 function New-WidgetSupervisorTaskDefinition {
   param([Parameter(Mandatory=$true)]$Info)
-  $action=New-ScheduledTaskAction -Execute $Info.Execute -Argument $Info.Arguments -WorkingDirectory $Info.WorkingDirectory
+  $action=New-ScheduledTaskAction -Execute $Info.Execute -Argument $Info.Arguments -WorkingDirectory $Info.TaskWorkingDirectory
   $principal=New-ScheduledTaskPrincipal -UserId $Info.Sid -LogonType Interactive -RunLevel Limited
   $trigger=New-ScheduledTaskTrigger -AtLogOn -User $Info.Sid
   $settings=New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -StartWhenAvailable -Hidden
@@ -158,7 +194,7 @@ function Register-WidgetSupervisorTask {
   $currentAction=if($existing){@($existing.Actions)[0]}else{$null}
   # An unchanged stable entry survives program replacement. Replacing the running
   # recovery task's definition can terminate its own instance on Windows.
-  if(!$currentAction -or [string]$currentAction.Arguments-ine $info.Arguments -or [IO.Path]::GetFullPath($currentAction.WorkingDirectory).TrimEnd('\')-ine $info.WorkingDirectory){
+  if(!$currentAction -or [string]$currentAction.Arguments-ine $info.Arguments -or [IO.Path]::GetFullPath($currentAction.WorkingDirectory).TrimEnd('\')-ine $info.TaskWorkingDirectory){
     $definition=New-WidgetSupervisorTaskDefinition $info
     Register-ScheduledTask -TaskName $info.TaskName -TaskPath $info.TaskPath -InputObject $definition -Force -ErrorAction Stop|Out-Null
   }
@@ -174,6 +210,11 @@ function Start-WidgetSupervisorTask {
   $info=Get-WidgetSupervisorInfo $AppDir
   $task=Get-WidgetSupervisorTask $info
   if(!$task){throw 'Supervisor task is not installed.'}
+  # Migrate old registrations when opened, not only during a full reinstall.
+  if([IO.Path]::GetFullPath(@($task.Actions)[0].WorkingDirectory).TrimEnd('\')-ine $info.TaskWorkingDirectory){
+    Register-WidgetSupervisorTask $AppDir|Out-Null
+    return
+  }
   Resume-WidgetSupervisor $AppDir
   Start-ScheduledTask -TaskName $info.TaskName -TaskPath $info.TaskPath -ErrorAction Stop
 }

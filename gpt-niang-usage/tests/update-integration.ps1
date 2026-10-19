@@ -79,7 +79,8 @@ try {
   Write-WidgetSupervisorJson (Join-Path $data 'update-preferences.json') @{automatic=$false}
   Wait-IsolatedProcess (Start-IsolatedPowerShell (Join-Path $app 'Install.ps1'))
   $registered=Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
-  if($registered.Actions[0].WorkingDirectory-ine $agent){throw 'Real task did not use the isolated stable entry.'}
+  Assert-WidgetSupervisorTaskIdentity $registered (Get-WidgetSupervisorInfo $app)
+  if($registered.Actions[0].WorkingDirectory-ine (Join-Path $env:WINDIR 'System32')){throw 'Real task did not use the system working directory.'}
   Write-Output 'PASS real initial plugin and stable scheduled task registration'
   $lock=Enter-WidgetUpdateLock
   $job=Join-Path $data ('updates\'+$lock.Token);$candidate=Join-Path $job 'package\bundle'
@@ -141,7 +142,7 @@ try {
   foreach($process in $processes){if(!$process.HasExited){$process.Kill();$process.WaitForExit()};$process.Dispose()}
   $task=Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
   if($task){
-    if($task.Actions[0].WorkingDirectory-ine $agent){throw 'Refusing cleanup of a foreign integration task.'}
+    if($task.Actions[0].Arguments-ine ('"'+(Join-Path $agent 'agent-supervisor.vbs')+'"') -or [IO.Path]::GetFullPath($task.Actions[0].Execute)-ine (Join-Path $env:WINDIR 'System32\wscript.exe') -or (Resolve-WidgetSupervisorSid $task.Principal.UserId)-ne $sid){throw 'Refusing cleanup of a foreign integration task.'}
     Stop-ScheduledTask -TaskName $taskName
     Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
   }

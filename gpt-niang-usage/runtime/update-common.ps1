@@ -1,5 +1,16 @@
 function Get-WidgetUpdateAgentDir {
-  return (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'GPTNiangUsage\update-agent')
+  # Stable scripts know their own directory; runtime scripts use the persisted binding.
+  if(Test-Path -LiteralPath (Join-Path $PSScriptRoot 'binding.json')){return Resolve-WidgetPhysicalPath $PSScriptRoot}
+  $configFile=Join-Path (Split-Path $PSScriptRoot -Parent) 'installation.json'
+  if(Test-Path -LiteralPath $configFile){
+    $config=Get-Content -LiteralPath $configFile -Raw -Encoding UTF8|ConvertFrom-Json
+    if($config.updateAgent -and (Test-Path -LiteralPath (Join-Path $config.updateAgent 'binding.json'))){
+      $binding=Get-Content -LiteralPath (Join-Path $config.updateAgent 'binding.json') -Raw -Encoding UTF8|ConvertFrom-Json
+      if($binding.sid-ne [Security.Principal.WindowsIdentity]::GetCurrent().User.Value -or [IO.Path]::GetFullPath($binding.appDir)-ine [IO.Path]::GetFullPath($config.appDir)){throw 'Stable launcher binding mismatch.'}
+      return Resolve-WidgetPhysicalPath $config.updateAgent
+    }
+  }
+  return Resolve-WidgetPhysicalPath (Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'GPTNiangUsage\update-agent')
 }
 function Read-WidgetUpdateJson([string]$File) {
   if(Test-Path -LiteralPath $File){return (Get-Content -LiteralPath $File -Raw -Encoding UTF8|ConvertFrom-Json)}
@@ -72,7 +83,7 @@ function Assert-WidgetUpdateChildPath([string]$Path,[string]$Parent) {
 function Assert-WidgetUpdateBinding([string]$AppDir,[string]$DataDir,[string]$AgentDir=(Get-WidgetUpdateAgentDir)) {
   $binding=Read-WidgetUpdateJson (Join-Path $AgentDir 'binding.json')
   $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  if(!$binding -or $binding.sid-ne $sid -or [IO.Path]::GetFullPath($binding.appDir)-ine [IO.Path]::GetFullPath($AppDir) -or [IO.Path]::GetFullPath($binding.dataDir)-ine [IO.Path]::GetFullPath($DataDir)){throw 'Stable update launcher identity mismatch.'}
+  if(!$binding -or $binding.sid-ne $sid -or [IO.Path]::GetFullPath($binding.appDir)-ine [IO.Path]::GetFullPath($AppDir) -or (Resolve-WidgetPhysicalPath $binding.dataDir)-ine (Resolve-WidgetPhysicalPath $DataDir)){throw 'Stable update launcher identity mismatch.'}
   return $binding
 }
 function Install-WidgetUpdateAgent([string]$AppDir,[string]$DataDir) {
@@ -81,6 +92,7 @@ function Install-WidgetUpdateAgent([string]$AppDir,[string]$DataDir) {
   $old=Read-WidgetUpdateJson (Join-Path $agentDir 'binding.json')
   if($old -and $old.appDir-ine $AppDir -and (Test-Path -LiteralPath $old.appDir)){throw 'Stable launcher belongs to an existing installation.'}
   $null=New-Item -ItemType Directory -Path $agentDir -Force
+  $agentDir=Resolve-WidgetPhysicalPath $agentDir
   foreach($file in @('update-agent.ps1','update-helper.ps1','update-common.ps1','update-lock.ps1','supervisor-task.ps1','install-preflight.ps1','agent-launch.vbs','agent-supervisor.vbs')) {
     $bytes=[IO.File]::ReadAllBytes((Join-Path $AppDir ('runtime\'+$file)))
     $target=Join-Path $agentDir $file
