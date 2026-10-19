@@ -10,6 +10,7 @@ function Set-WidgetMenuBounds {}
 function Position-WidgetMenuToHost {}
 function Set-Appearance {}
 function Set-WidgetAudioVolume {}
+function Set-WidgetGravityMode([bool]$Enabled){$script:gravityEnabled=$Enabled;Save-Settings}
 function Stop-WidgetAudio {}
 . (Join-Path $appDir 'runtime\supervisor-task.ps1')
 . (Join-Path $appDir 'runtime\update-common.ps1')
@@ -24,6 +25,14 @@ $script:scale=1.0;$script:soundOn=$true;$script:soundVolume=0.9;$script:bubbleTa
 $script:colorMode='mixed';$script:colorChance=0.5;$script:colorTextChance=3;$script:colorPaused=$false
 try{
   Initialize-WidgetSettingsMenu
+  Assert-Equal ($script:context.Items.Contains($script:settingsMenuUi.Gravity)) $true 'Gravity mode is a top-level setting'
+  Assert-Equal ($script:context.Items.Contains($script:settingsMenuUi.Appearance)) $true 'Appearance remains at the same menu level'
+  $script:settingsMenuUi.Gravity.IsChecked=$true
+  $script:settingsMenuUi.Gravity.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
+  Assert-Equal $script:gravityEnabled $true 'Gravity toggle enables the controller'
+  $script:settingsMenuUi.Gravity.IsChecked=$false
+  $script:settingsMenuUi.Gravity.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
+  Assert-Equal $script:gravityEnabled $false 'Gravity toggle disables the controller'
   $expected=@('查看额度','换一句台词','刷新额度','编辑我的语录','显示与位置','外观设置','声音与点击','更新','退出 GPT 娘')
   $actual=@($script:context.Items|Where-Object{$_.Header-is [string]}|ForEach-Object{$_.Header})
   Assert-Equal ($actual-join '|') ($expected-join '|') 'Menu entries and removed title block'

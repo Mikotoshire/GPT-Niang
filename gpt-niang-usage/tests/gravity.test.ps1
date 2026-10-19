@@ -24,7 +24,12 @@ $charged=[GptGravityModel]::new();$charged.BeginPress();Step $charged 0.22
 $baseY=$charged.ScaleY;$baseX=$charged.ScaleX
 Step $charged 0.8
 Assert ($charged.ScaleY-lt $baseY -and $charged.ScaleX-gt $baseX -and $charged.Charge-gt 0) 'Long hold must flatten, widen and accumulate energy'
-$charged.ReleasePress();$chargedPeak=Finish $charged
+$compressedY=$charged.ScaleY
+$charged.ReleasePress()
+Assert ([Math]::Abs($charged.ScaleY-$compressedY)-lt 0.000001) 'Release must not instantly snap the compressed image to full height'
+Step $charged 0.06
+Assert ($charged.ScaleY-gt $compressedY -and $charged.ScaleY-lt 1.1) 'Shape must recover smoothly during takeoff'
+$chargedPeak=Finish $charged
 Assert ($chargedPeak-gt $tapPeak*3 -and $charged.Rebounds-ge 2) 'Charged jump must be higher and rebound repeatedly'
 Assert ($charged.PeakHeight-le [GptGravityModel]::TapHeight+0.0001) 'Final landing must follow a jump at or below tap height'
 Assert ([Math]::Abs($charged.ScaleX-1)-lt 0.0001 -and [Math]::Abs($charged.ScaleY-1)-lt 0.0001) 'Shape must return to rest'

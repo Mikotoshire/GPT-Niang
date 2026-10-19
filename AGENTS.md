@@ -1,6 +1,7 @@
 # Personal GPT-Niang maintenance
 
 This is Mikotoshire's personal Windows fork. Read `docs/PERSONAL-FORK.md` before changing deployment or update behavior.
+For current interaction architecture, physics constants and regression checks, also read `codex.md`.
 
 - Preserve upstream Git history, copyright, LICENSE, character artwork/source notices and quotation licenses. Do not imply ownership of third-party artwork.
 - `origin` is `Mikotoshire/GPT-Niang`; `upstream` is reference only. Never push to upstream or automatically install its releases.
