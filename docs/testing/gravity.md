@@ -30,3 +30,5 @@ These checks are targeted evidence, not a claim of whole-project coverage or mac
 Aether migration adds explicit tests for two-axis fling, wall restitution, friction to rest and reset. DLL is pinned with source/license/SHA256 in runtime/vendor/aether/NOTICE.md. Physics runs at 240 Hz independent of renderer rate. UI tests exercise the production controller with the actual dependency.
 
 Production HWND tests also verify drag sampling, upward/rightward inertia, actual horizontal movement and rejection of stale drag history. Archive tests accept only the pinned dependency hash and reject substitutions; release updating remains disabled by the personal-fork policy.
+
+Stable-launch regression: hash verification uses .NET SHA256 directly because the supervisor environment may lack PowerShell module autoload paths. WPF tests deliberately make Get-FileHash unavailable while loading the production controller.

@@ -1,5 +1,10 @@
 $gravityLibrary=Join-Path $PSScriptRoot 'vendor/aether/Aether.Physics2D.dll'
-if((Get-FileHash -LiteralPath $gravityLibrary -Algorithm SHA256).Hash -ne '56F511BAADEF2C521D7DE983418813B075B3C2194825C7E17C06B59F267F2A78'){throw 'Physics library hash mismatch'}
+# The stable launcher may have no PowerShell module autoload path.
+$gravityHasher=[Security.Cryptography.SHA256]::Create()
+$gravityStream=[IO.File]::OpenRead($gravityLibrary)
+try{$gravityHash=[BitConverter]::ToString($gravityHasher.ComputeHash($gravityStream)).Replace('-','')}
+finally{$gravityStream.Dispose();$gravityHasher.Dispose()}
+if($gravityHash -ne '56F511BAADEF2C521D7DE983418813B075B3C2194825C7E17C06B59F267F2A78'){throw 'Physics library hash mismatch'}
 if(!('nkast.Aether.Physics2D.Dynamics.World' -as [type])){Add-Type -Path $gravityLibrary}
 if(!('GptGravityModel' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'gravity-model.cs') -ReferencedAssemblies $gravityLibrary}
 

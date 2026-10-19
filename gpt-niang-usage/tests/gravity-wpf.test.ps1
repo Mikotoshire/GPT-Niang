@@ -1,7 +1,9 @@
 param([string]$AppDir=(Split-Path $PSScriptRoot -Parent))
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
+function Get-FileHash {throw 'Module-based hash must not be required by the stable launcher'}
 . (Join-Path $AppDir 'runtime\gravity.ps1')
+Remove-Item Function:\Get-FileHash
 $source=[IO.File]::ReadAllText((Join-Path $AppDir 'widget.ps1'),[Text.Encoding]::UTF8)
 $native=[regex]::Match($source,"(?s)Add-Type -TypeDefinition @'\r?\n(.*?)\r?\n'@")
 Add-Type -TypeDefinition $native.Groups[1].Value
