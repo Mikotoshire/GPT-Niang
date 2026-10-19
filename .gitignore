@@ -37,3 +37,7 @@ Thumbs.db
 
 # Local-only bounded quota diagnostics
 **/quota-diagnostics.jsonl*
+
+# Local Python verification caches
+**/__pycache__/
+*.pyc

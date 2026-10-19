@@ -114,3 +114,13 @@ node gpt-niang-usage/runtime/control.mjs diagnostics 100
 排查顺序：检查任务执行路径及最后结果，再检查 `supervisor-status.json` 的时间、进程、widgetRunning，最后核对 `presence.json` 的新鲜度与 visible。启动器错误在本机 `update-diagnostic.txt`，任务修改前的 XML 备份仅在本机状态目录。不要公开真实配置、任务 XML 或诊断中的机器路径。
 
 新增 `startup-directory.test.ps1` 覆盖 OS 实际路径、旧任务迁移、系统工作目录、严格参数和未知目录拒绝；安装/更新回归保留账户及路径绑定检查。实机验收必须由计划任务启动后同时出现新鲜后台心跳、GUI 心跳与可见挂件；未做注销或关闭 Codex 的测试，不宣称已完成这些测试。
+
+## Windows 测试版发布（1.4.0）
+
+首次维护版 Release 标签为 `mikotoshire-v1.4.0-preview.1`，内部严格三段版本为 1.4.0，标记 Pre-release。发布包只含 Windows，不运行上游双平台自动发布或重写已发标签/安装包。插件界面标明维护者与上游出处，内部市场、插件、MCP、状态目录标识为兼容已有个人安装暂时保留；因此不支持与原版并存，安装器身份检查必须保留。
+
+`python scripts/build-release.py` 按 `runtime/install-files.json` 与固定附加清单，从 `git cat-file` 读取已提交 blob。禁止从工作区读取待打包内容，特别是 skip-worktree 的本机 `.mcp.json`。`scripts/release_audit.py` 检查所有已提交文件的敏感文件名、凭据特征、机器目录、PNG 文本/EXIF 元数据、DLL 哈希，并检查最终包的 MCP 便携模板、版本和更新禁用策略。仅允许已验证 Aether DLL，不临时下载二进制。
+
+输出 ZIP、SHA256SUMS、RELEASE-AUDIT 摘要和发布说明；包内 SOURCE.json 指明源码提交，FILE-MANIFEST.json 记录文件哈希。ZIP 时间固定，重复构建应逐字节相同。`test_release.py` 使用虚构 Git 仓库和受污染的工作区验证不会打包机器配置；已提交的坏模板则拒绝打包。扫描结果仅输出文件名/规则，不回显潜在秘密。
+
+发布前运行 Node、Windows 关键回归、Python 打包测试和压缩包内容检查；从压缩包解压的副本检查必需文件、版本、PowerShell 语法和 Node 模块。记录验证限制，不声称未经执行的新设备完整安装已通过。保持安装配置、账户数据、偏好、额度和真实诊断本地保存。发布只上传本次审查的 ZIP、SHA256SUMS、RELEASE-AUDIT；不上传工作目录或 Git bundle。

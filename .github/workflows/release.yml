@@ -1,137 +1,40 @@
-name: Test and publish Windows and macOS release
+name: Validate Windows maintenance release
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - gpt-niang-usage/package.json
-      - gpt-niang-usage/.codex-plugin/plugin.json
-      - gpt-niang-usage/assets/quotes.json
-      - gpt-niang-usage/assets/quote-layouts.json
+  workflow_dispatch:
   pull_request:
     paths:
       - .github/workflows/release.yml
       - scripts/**
-      - script/**
-      - macos/**
       - gpt-niang-usage/**
-  workflow_dispatch:
 
 permissions:
   contents: read
 
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
-
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
       - name: Node runtime tests
         working-directory: gpt-niang-usage
         run: npm test
-      - name: Prepare isolated installer executable fixture
-        shell: pwsh
+      - name: Release privacy and packaging tests
+        run: python -m unittest discover -s scripts -p "test_release.py"
+      - name: Verify pure Windows physics and startup migration
+        shell: powershell
         run: |
-          $fixture = Join-Path $env:RUNNER_TEMP 'gpt-niang-test-bin'
-          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
-          Copy-Item (Get-Command node.exe).Source (Join-Path $fixture 'codex.exe')
-          $fixture | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-      - name: Windows installer, lifecycle and WPF tests
-        working-directory: gpt-niang-usage
-        run: npm run test:windows
-      - name: Build and verify Windows bundle
+          & gpt-niang-usage/tests/gravity.test.ps1
+          & gpt-niang-usage/tests/floor-contact.test.ps1
+          & gpt-niang-usage/tests/horizontal-impact.test.ps1
+          & gpt-niang-usage/tests/startup-directory.test.ps1
+      - name: Build committed and audited Windows bundle
         run: python scripts/build-release.py
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-windows
-          path: dist/*-windows.zip
-          if-no-files-found: error
-  macos:
-    runs-on: macos-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Node runtime and crash recovery tests
-        working-directory: gpt-niang-usage
-        run: npm test
-      - name: Swift behavior tests
-        run: swift test --package-path macos
-      - name: Build universal release app
-        env:
-          GPT_NIANG_BUILD_CONFIGURATION: release
-          GPT_NIANG_BUILD_UNIVERSAL: '1'
-        run: ./script/build_and_run.sh --build-only
-      - name: Verify architectures, version, signature and archive
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(node -p "require('./gpt-niang-usage/package.json').version")"
-          lipo dist/GPTNiangMac.app/Contents/MacOS/GPTNiangMac -verify_arch arm64 x86_64
-          lipo dist/GPTNiangMac.app/Contents/Helpers/GPTNiangUpdater -verify_arch arm64 x86_64
-          dist/GPTNiangMac.app/Contents/Helpers/GPTNiangUpdater --validate-bundle dist/GPTNiangMac.app "$version" --universal
-          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/GPTNiangMac.app/Contents/Info.plist)" = "$version"
-          codesign --verify --deep --strict dist/GPTNiangMac.app
-          archive="dist/gpt-niang-usage-widget-v$version-macos-universal.zip"
-          ditto -c -k --sequesterRsrc --keepParent dist/GPTNiangMac.app "$archive"
-          mkdir -p "$RUNNER_TEMP/mac-release-check"
-          ditto -x -k "$archive" "$RUNNER_TEMP/mac-release-check"
-          codesign --verify --deep --strict "$RUNNER_TEMP/mac-release-check/GPTNiangMac.app"
-          lipo "$RUNNER_TEMP/mac-release-check/GPTNiangMac.app/Contents/MacOS/GPTNiangMac" -verify_arch arm64 x86_64
-          "$RUNNER_TEMP/mac-release-check/GPTNiangMac.app/Contents/Helpers/GPTNiangUpdater" --validate-bundle "$RUNNER_TEMP/mac-release-check/GPTNiangMac.app" "$version" --universal
-      - uses: actions/upload-artifact@v4
-        with:
-          name: release-macos
-          path: dist/*-macos-universal.zip
-          if-no-files-found: error
-  publish:
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    needs: [windows, macos]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: release-*
-          path: dist
-          merge-multiple: true
-      - name: Verify both packages and prepare checksums and release notes
-        run: python scripts/prepare-release.py
-      - name: Publish both platform packages together
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          version="$(python -c 'import json; print(json.load(open("gpt-niang-usage/package.json"))["version"])')"
-          tag="v$version"
-          gh release list --repo "$GITHUB_REPOSITORY" --limit 100 --json tagName > "$RUNNER_TEMP/releases.json"
-          if jq -e --arg tag "$tag" '.[] | select(.tagName == $tag)' "$RUNNER_TEMP/releases.json" >/dev/null; then
-            latest="$(gh api "repos/$GITHUB_REPOSITORY/releases/latest" --jq .tag_name)"
-            test "$latest" = "$tag" || { echo "Only the latest release may receive a quote refresh." >&2; exit 1; }
-            git fetch --no-tags origin "refs/tags/$tag:refs/tags/$tag"
-            if git diff --quiet "$tag" "$GITHUB_SHA" -- gpt-niang-usage/assets/quotes.json; then
-              echo "Release $tag already exists without a quote update; increment the version first." >&2
-              exit 1
-            fi
-            current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)"
-            test "$current" = "$GITHUB_SHA" || { echo "Main changed during the build; refusing to replace newer assets." >&2; exit 1; }
-            gh release upload "$tag" dist/*-windows.zip dist/*-macos-universal.zip dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --clobber
-            gh api --method PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" -f sha="$GITHUB_SHA" -F force=true
-            gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --notes-file dist/release-notes.md --latest
-            exit 0
-          fi
-          gh release create "$tag" dist/*-windows.zip dist/*-macos-universal.zip dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$tag · Windows / macOS" --notes-file dist/release-notes.md --draft
-          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+# Publishing is explicit after local review. No automatic upstream/Mac release,
+# tag moves, asset clobbering or user credentials in this workflow.
