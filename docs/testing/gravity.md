@@ -40,3 +40,11 @@ Stable-launch regression: hash verification uses .NET SHA256 directly because th
 A one-second invisible-HWND rendering harness on the same machine observed 36 callbacks with the previous dispatcher timer (median 29.3 ms, P95 46.2 ms) and 115 callbacks with the rendering event (median 6.2 ms, P95 28.1 ms). This is a local scheduling measurement, not a guarantee of on-screen FPS. Real display smoothness still depends on compositor/device load.
 
 Window tests exercise actual horizontal movement, cancellation, mirrored full compression bounds, mode cleanup and persistence. Settings tests exercise separate mirror/gravity/elasticity controls. Original sizing, desktop mode and layout regressions remain required.
+
+## Floor contact and managed frame path
+
+The old model reproduced a first-step snap to zero when released from 2–16 design DIP. The contact guard now requires IsTouching, and the floor edge has no extra skin radius. The new near-floor test requires nonzero height and increasing downward speed before actual landing, including 0.5-DIP releases.
+
+Managed model/transform/native updates replace the per-frame PowerShell callback. A visible two-second HWND run at a 90-Hz scheduling target produced 151 updates, 74.4 effective updates/s, 131 changing native positions, 2.260-ms mean work, and seven script notifications. The actual installed follower run produced 201 updates at 73.6 updates/s and settled on the floor. Its maximum step was 48.28 ms; these are application measurements, not physical scan-out guarantees. A prior 60-Hz scheduling target measured only 55.1 updates/s in the real widget, so the target was raised with a bounded phase schedule.
+
+Node runtime: 84 passed, one platform fixture skipped. Model, motion tuning, floor contact, 17 WPF controller cases, menu, desktop, drag sizing and 240 display sizing checks passed. Existing private settings were restored after live trajectory measurement.

@@ -64,3 +64,15 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tests/gravity-wpf.t
 - 动画使用 `gravity-render.cs` 的 WPF 渲染事件，只在活动时订阅，停止时解除；相同 RenderingTime 不重复推进。避免 16 ms 定时器叠加处理耗时错过渲染帧。图像高质量缩放保持启用，BitmapCache 按实际尺寸和 DPI 设置采样，减少每帧重采样原始图像。
 - 原生跟随新增 MovePose，只更新运动位置；保留常规 Configure 处理宿主/DPI/尺寸改变。物理模型不再在每个渲染帧无条件重设刚体位置，以保留 Aether 接触求解缓存。
 - 新测试 `motion-tuning.test.ps1` 覆盖迅速松手、停住 0.1/0.5/1 秒后释放、重力与弹性独立、参数重置保留和镜像策略。WPF/菜单测试覆盖实际位移、镜像蓄力不裁切、滑条值和持久化。
+
+## 实机帧率与近地修复（2026-10-19，暂停后继续）
+
+逐帧热路径现在在 C# `gravity-render.cs`：`GptGravityScene` 保存布局快照，`GptGravityRenderLoop` 推进 Aether 模型、更新 ScaleTransform、调用原生窗口跟随。PowerShell Tick 通知最多约 4 Hz，仅同步位置、菜单和结束保存。`Tick-Widget` 每次常规布局前先同步已显示位置，再更新 Scene，防止一秒刷新把运动拉回旧坐标。
+
+调度目标为 90 Hz，给至少约 60 Hz 的应用更新留余量；采用相位截止时间，限制无效高频回调，隐藏、宿主最小化和静止后解除 Rendering 订阅。物理仍按 240 Hz 固定步、真实经过时间推进，速度与动画更新率独立。Rendering 回调可能快于显示器扫描，不能将原始回调次数称作上屏 FPS。`presence.json.gravity` 的 targetFps、renderFps、frameCount、meanStepMs、maxStepMs 是本地应用诊断，空闲前无动画时为零。
+
+近地吸附的根因：Aether 的 PreSolve 回调可能来自宽相预检测，旧代码未判断 `contact.IsTouching` 就按触底处理；从 16 DIP 松手甚至一步归零。现在忽略尚未真正接触的回调，并将地面 Edge 的额外 Shape.Radius 设为 0，由圆形刚体定义脚底边界，避免约 1 DIP 提前接触。0.5、1、2、4、8、16 DIP 释放均应先加速下落；真实碰撞后才停止或回弹。
+
+模型与渲染器在运行时一起编译，引用 Aether、PresentationCore 和 WindowsBase；纯模型测试仍可独立编译模型。`Update-WidgetGravity` 保留为显式诊断/回归的单步桥接，不再绑定逐帧 Rendering。原生 `AnimationFrame()` 返回当前宿主与工作区裁切后的边界；委托调用不经过 PowerShell。保留现有镜像、重力、弹性和拖动设置。
+
+新增 `floor-contact.test.ps1` 与 `managed-frames.test.ps1`。后者使用真实图片和 HWND，验证有效帧调度、实际位置改变、平均步耗时、低频脚本通知和位置同步；`-Visible` 可短暂显示测试窗口。测试机器可见窗口约 74.4 Hz、平均步耗时约 2.26 ms；实际挂件目标 90 Hz、测得约 73.6 Hz，仍有单次约 48 ms 的系统/窗口开销峰值。因此不能宣称每一帧或所有设备均恒定超过 60 FPS。

@@ -6,10 +6,10 @@ try{$gravityHash=[BitConverter]::ToString($gravityHasher.ComputeHash($gravityStr
 finally{$gravityStream.Dispose();$gravityHasher.Dispose()}
 if($gravityHash -ne '56F511BAADEF2C521D7DE983418813B075B3C2194825C7E17C06B59F267F2A78'){throw 'Physics library hash mismatch'}
 if(!('nkast.Aether.Physics2D.Dynamics.World' -as [type])){Add-Type -Path $gravityLibrary}
-if(!('GptGravityModel' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'gravity-model.cs') -ReferencedAssemblies $gravityLibrary}
-
 Add-Type -AssemblyName PresentationCore,WindowsBase
-if(!('GptGravityRenderLoop' -as [type])){Add-Type -Path (Join-Path $PSScriptRoot 'gravity-render.cs') -ReferencedAssemblies @([Windows.Media.CompositionTarget].Assembly.Location,[Windows.DependencyObject].Assembly.Location)}
+if(!('GptGravityRenderLoop' -as [type])){
+  Add-Type -Path @((Join-Path $PSScriptRoot 'gravity-model.cs'),(Join-Path $PSScriptRoot 'gravity-render.cs')) -ReferencedAssemblies @($gravityLibrary,[Windows.Media.CompositionTarget].Assembly.Location,[Windows.DependencyObject].Assembly.Location)
+}
 
 function Get-WidgetGravityPadding {
   # Ground is the visible character's feet, excluding the transparent canvas margin.
@@ -34,13 +34,49 @@ function Initialize-WidgetGravity {
   if($script:gravityEnabled){$script:gravity.DropFrom([Math]::Max(0,$script:offsetBottom/[Math]::Max(0.1,$script:displayScale)))}
   $script:gravityClock=[Diagnostics.Stopwatch]::StartNew()
   $script:gravityTimer=[GptGravityRenderLoop]::new()
-  $script:gravityTimer.Add_Tick({try{Update-WidgetGravity}catch{
-    $script:gravityTimer.Stop()
-    [IO.File]::WriteAllText((Join-Path $script:dataDir 'gravity-error.txt'),$_.Exception.ToString(),[Text.UTF8Encoding]::new($false))
-  }})
+  $script:gravityTimer.Add_Tick({
+    Sync-WidgetGravityPosition
+    if($script:gravityTimer.LastError){
+      [IO.File]::WriteAllText((Join-Path $script:dataDir 'gravity-error.txt'),$script:gravityTimer.LastError,[Text.UTF8Encoding]::new($false))
+    }
+    if($script:context.IsOpen){Set-WidgetMenuBounds;Position-WidgetMenuToHost}
+    if(!$script:gravityTimer.IsEnabled -and !$script:gravity.Active){Save-Settings}
+  })
 }
 function Start-WidgetGravityTimer {
-  if($script:gravityEnabled -and $script:gravity.Active -and !$script:gravityTimer.IsEnabled){$script:gravityClock.Restart();$script:gravityTimer.Start()}
+  if($script:gravityEnabled -and $script:gravity.Active -and !$script:gravityTimer.IsEnabled){
+    if(!(Set-WidgetGravityScene)){return}
+    $script:gravityClock.Restart();$script:gravityTimer.Start()
+  }
+}
+function Set-WidgetGravityScene {
+  $frame=Get-WidgetPlacementFrame;$dpi=Get-WidgetPlacementDpi
+  if(!(Test-WidgetPlacementFrame $frame $dpi)){return $false}
+  $geometry=Get-WidgetGravityGeometry
+  $scene=[GptGravityScene]::new()
+  $scene.Model=$script:gravity;$scene.Scale=$script:ui.GravityScale
+  $scene.Widget=$script:widgetHandle;$scene.Host=if($script:hostHandle){$script:hostHandle}else{[IntPtr]::Zero};$scene.Follow=$script:followHost;$scene.Free=$script:gravityInertia
+  $scene.Width=$geometry.Width;$scene.Height=$geometry.Height;$scene.Unit=$geometry.Unit;$scene.Padding=$geometry.Padding;$scene.Dpi=$dpi
+  $scene.FrameLeft=$frame.Left;$scene.FrameTop=$frame.Top;$scene.FrameRight=$frame.Right;$scene.FrameBottom=$frame.Bottom
+  $scene.Left=$script:offsetLeft;$scene.Right=$script:offsetRight;$scene.Anchor=$script:anchor
+  if($script:followHost -and $script:hostFollower -and $script:hostFollower.GetType().GetMethod('AnimationFrame')){
+    $scene.ReadFrame=[Delegate]::CreateDelegate([Func[int[]]],$script:hostFollower,'AnimationFrame')
+    $scene.Move=[Delegate]::CreateDelegate([Action[int,int,int,string]],$script:hostFollower,'MovePose')
+  }
+  if(!$script:gravityInertia){
+    $rect=New-Object GptWidgetNative+Rect;[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
+    $script:gravity.SetHorizontalPosition([Math]::Max(0,($rect.Left-$frame.Left)/$geometry.Unit))
+  }
+  $script:gravityTimer.Scene=$scene
+  return $true
+}
+function Sync-WidgetGravityPosition {
+  if(!$script:gravityTimer -or !$script:gravityTimer.Scene -or !$script:gravityTimer.Scene.HasPose){return}
+  $scene=$script:gravityTimer.Scene
+  $script:offsetBottom=$script:gravity.Height*$script:displayScale
+  if($scene.Free){$script:offsetLeft=$scene.PoseLeft;$script:offsetRight=$scene.PoseRight;$script:anchor='free'}
+  if(!$script:followHost){$script:desktopLeft=$scene.X;$script:desktopTop=$scene.Y}
+  $script:lastPosition=$null
 }
 function Set-WidgetGravityPose {
   $script:ui.GravityScale.ScaleX=$script:gravity.ScaleX

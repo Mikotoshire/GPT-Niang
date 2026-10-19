@@ -88,6 +88,13 @@ public sealed class GptWidgetHostFollower : IDisposable {
   this.bottom=bottom;this.anchor=anchor;this.enabled=enabled;
   if(enabled)Synchronize();
  }
+ public int[] AnimationFrame(){
+  Rect r,current;if(disposed||!GetWindowRect(host,out r))return null;
+  r.Left+=insetLeft;r.Top+=insetTop;r.Right-=insetRight;r.Bottom-=insetBottom;
+  IntPtr monitor=MonitorFromWindow(host,2);
+  if(GetWindowRect(widget,out current))monitor=MonitorFromPoint(new Point{X=(current.Left+current.Right)/2,Y=(current.Top+current.Bottom)/2},2);
+  return Clip(monitor,r.Left,r.Top,r.Right,r.Bottom);
+ }
  public void MovePose(int left,int right,int bottom,string anchor){
   this.left=left;this.right=right;this.bottom=bottom;this.anchor=anchor;enabled=true;Synchronize();
  }

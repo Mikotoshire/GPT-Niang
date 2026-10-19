@@ -711,6 +711,7 @@ function Stop-WidgetRuntime {
   try{if($script:mutexOwned){$script:mutex.ReleaseMutex();$script:mutexOwned=$false}}catch{};try{$script:mutex.Dispose()}catch{}
 }
 function Tick-Widget {
+  if($script:gravityTimer -and $script:gravityTimer.IsEnabled){Sync-WidgetGravityPosition}
   if($script:updating){return}
   $script:updating=$true
   try{
@@ -773,7 +774,7 @@ function Tick-Widget {
     if($script:followHost){$layer=Set-WidgetAboveHost $script:widgetHandle $script:hostHandle}
     else{Set-WidgetDesktopLayer $script:widgetHandle $script:desktopTopmost}
     if($showWidget){$script:window.Show();$script:lastPosition=$null;Request-Refresh}
-    if($script:gravityEnabled){Start-WidgetGravityTimer}
+    if($script:gravityEnabled){if($script:gravityTimer.IsEnabled){$null=Set-WidgetGravityScene};Start-WidgetGravityTimer}
   }elseif($script:window.IsVisible){
     $script:hostFollower.Suspend()
     $script:context.IsOpen=$false
@@ -782,7 +783,7 @@ function Tick-Widget {
     $script:window.Hide()
   }
   if($now-$script:lastPresence-ge 1000){
-    Write-WidgetJson (Join-Path $script:dataDir 'presence.json') @{visible=[bool]$visible;at=$now;host=$script:hostHandle.ToInt64();widget=$script:widgetHandle.ToInt64();pid=$PID;followHost=$script:followHost;gravity=@{enabled=$script:gravityEnabled;height=$script:gravity.Height;velocity=$script:gravity.Velocity;charge=$script:gravity.Charge;rebounds=$script:gravity.Rebounds;active=$script:gravity.Active};follow=@{ready=$script:hostFollower.Ready;events=$script:hostFollower.MovementEvents;mode='native-immediate';animationPaddingDip=14};scene=@{open=!$script:collapsed;mode=$script:bubbleMode;resetTimeMode=$script:resetTimeMode;startedAt=$script:sceneStartedAt;closesAt=$script:sceneDeadline;shortReset=$script:ui.ShortReset.Text;weekReset=$script:ui.WeekReset.Text}}
+    Write-WidgetJson (Join-Path $script:dataDir 'presence.json') @{visible=[bool]$visible;at=$now;host=$script:hostHandle.ToInt64();widget=$script:widgetHandle.ToInt64();pid=$PID;followHost=$script:followHost;gravity=@{targetFps=$script:gravityTimer.TargetFps;renderFps=$script:gravityTimer.Fps;frameCount=$script:gravityTimer.FrameCount;maxStepMs=$script:gravityTimer.MaxStepMs;meanStepMs=$script:gravityTimer.MeanStepMs;enabled=$script:gravityEnabled;height=$script:gravity.Height;velocity=$script:gravity.Velocity;charge=$script:gravity.Charge;rebounds=$script:gravity.Rebounds;active=$script:gravity.Active};follow=@{ready=$script:hostFollower.Ready;events=$script:hostFollower.MovementEvents;mode='native-immediate';animationPaddingDip=14};scene=@{open=!$script:collapsed;mode=$script:bubbleMode;resetTimeMode=$script:resetTimeMode;startedAt=$script:sceneStartedAt;closesAt=$script:sceneDeadline;shortReset=$script:ui.ShortReset.Text;weekReset=$script:ui.WeekReset.Text}}
     Update-Quota;$script:lastPresence=$now
     Read-DisplayRequest
   }
