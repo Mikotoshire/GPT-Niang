@@ -37,6 +37,12 @@ public sealed class GptGravityRenderLoop {
     public double TotalStepMs { get; private set; }
     public double MeanStepMs { get { return FrameCount>0?TotalStepMs/FrameCount:0; } }
     public double MaxStepMs { get; private set; }
+    // AI-generated maintenance diagnostics: numeric timings only, see AI-NOTICE.md.
+    public double MeanPhysicsMs { get { return MeanMilliseconds(physicsTicks); } }
+    public double MeanPoseMs { get { return MeanMilliseconds(poseTicks); } }
+    public double MeanPlacementMs { get { return MeanMilliseconds(placementTicks); } }
+    long physicsTicks,poseTicks,placementTicks;
+    double MeanMilliseconds(long ticks) { return FrameCount>0?1000.0*ticks/Stopwatch.Frequency/FrameCount:0; }
     public string LastError { get; private set; }
     TimeSpan last = TimeSpan.MinValue, first;
     readonly Stopwatch clock=new Stopwatch(), cost=new Stopwatch();
@@ -44,6 +50,7 @@ public sealed class GptGravityRenderLoop {
     bool rendering;
     public void Start() {
         if(IsEnabled)return;IsEnabled=true;last=TimeSpan.MinValue;FrameCount=SlowFrames=0;MaxStepMs=TotalStepMs=0;PositionUpdates=0;LastError=null;
+        physicsTicks=poseTicks=placementTicks=0;
         previous=notified=nextFrame=0;clock.Restart();CompositionTarget.Rendering+=Render;
     }
     public void Stop() { if(!IsEnabled)return;IsEnabled=false;CompositionTarget.Rendering-=Render; }
@@ -56,8 +63,11 @@ public sealed class GptGravityRenderLoop {
         if(s.Unit<=0 || s.FrameRight<=s.FrameLeft || s.FrameBottom<=s.FrameTop)return false;
         double ceiling=Math.Max(0,(s.FrameBottom-s.FrameTop-s.Height+s.Padding)/s.Unit);
         double width=Math.Max(0,(s.FrameRight-s.FrameLeft-s.Width)/s.Unit);
+        long started=Stopwatch.GetTimestamp();
         s.Model.Advance(seconds,ceiling,width);
+        physicsTicks+=Stopwatch.GetTimestamp()-started;started=Stopwatch.GetTimestamp();
         s.Scale.ScaleX=s.Model.ScaleX;s.Scale.ScaleY=s.Model.ScaleY;
+        poseTicks+=Stopwatch.GetTimestamp()-started;started=Stopwatch.GetTimestamp();
         int x=s.Free?(int)Math.Round(s.FrameLeft+s.Model.HorizontalPosition*s.Unit):
             s.Anchor=="right"?(int)Math.Round(s.FrameRight-s.Width-s.Right*s.Dpi):(int)Math.Round(s.FrameLeft+s.Left*s.Dpi);
         x=Math.Max(s.FrameLeft,Math.Min(s.FrameRight-s.Width,x));
@@ -72,6 +82,7 @@ public sealed class GptGravityRenderLoop {
         }
         if(!s.HasPose || s.X!=x || s.Y!=y)PositionUpdates++;
         s.X=x;s.Y=y;s.PoseLeft=left;s.PoseRight=right;s.HasPose=true;
+        placementTicks+=Stopwatch.GetTimestamp()-started;
         return s.Model.Active;
     }
     void Render(object sender,EventArgs args) {

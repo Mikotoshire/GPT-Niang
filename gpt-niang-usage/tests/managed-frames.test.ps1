@@ -61,6 +61,8 @@ try{
   Start-WidgetGravityTimer;$finish.Start();[Windows.Threading.Dispatcher]::PushFrame($pump)
   $loop=$script:gravityTimer;$loop.Stop()
   $probe.Dispose()
+  # Print on failure too; otherwise the first failing assertion hides the useful measurements.
+  Write-Output ('MEASURE: inputHz='+[Math]::Round($probe.Fps,2)+' renderHz='+[Math]::Round($loop.Fps,2)+' frames='+$loop.FrameCount+' meanStepMs='+[Math]::Round($loop.MeanStepMs,3)+' physicsMs='+[Math]::Round($loop.MeanPhysicsMs,3)+' poseMs='+[Math]::Round($loop.MeanPoseMs,3)+' placementMs='+[Math]::Round($loop.MeanPlacementMs,3)+' maxStepMs='+[Math]::Round($loop.MaxStepMs,3))
   if($loop.LastError){throw $loop.LastError}
   # The requirement is 60 Hz when supplied; the 90-Hz cap is headroom, not a
   # guarantee to process every compositor callback above the required rate.
