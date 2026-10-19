@@ -53,6 +53,22 @@ try{
   $null=Set-WidgetPixelSize 1
   $script:gravityEnabled=$true;$script:gravityInertia=$true
   $script:gravity.SetTuning(0.5,0.25);$script:gravity.SetHorizontalPosition(300);$script:gravity.FlingFrom(600,100,0)
+  # Unique presentation frames can arrive in a burst after a native window call.
+  # Freezing the arrival clock makes this regression deterministic, without sleeps.
+  $null=Set-WidgetGravityScene
+  $script:gravityTimer.Start()
+  $flags=[Reflection.BindingFlags]'Instance,NonPublic'
+  $arrivalClock=$script:gravityTimer.GetType().GetField('clock',$flags).GetValue($script:gravityTimer)
+  $arrivalClock.Stop()
+  $renderMethod=$script:gravityTimer.GetType().GetMethod('RenderFrame',$flags)
+  foreach($index in 0..5){
+    $event=[Activator]::CreateInstance([Windows.Media.RenderingEventArgs],$flags,$null,@([TimeSpan]::FromSeconds(1+$index/60.0)),$null)
+    $null=$renderMethod.Invoke($script:gravityTimer,@($null,$event))
+  }
+  $script:gravityTimer.Stop()
+  if($script:gravityTimer.FrameCount-ne 6){throw 'Burst-delivered 60-Hz presentation frames were dropped by the arrival-clock limiter'}
+  Write-Output 'PASS: six distinct 60-Hz presentation frames survive a burst with a frozen arrival clock'
+  $script:gravity.SetHorizontalPosition(300);$script:gravity.FlingFrom(600,100,0)
   $script:notifications=0;$script:gravityTimer.Add_Tick({$script:notifications++})
   # A background-priority deadline can starve behind Rendering on a software GPU.
   $pump=[Windows.Threading.DispatcherFrame]::new();$finish=[Windows.Threading.DispatcherTimer]::new([Windows.Threading.DispatcherPriority]::Send)

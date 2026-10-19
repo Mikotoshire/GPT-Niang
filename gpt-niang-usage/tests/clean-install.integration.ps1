@@ -37,8 +37,15 @@ function Run-TestInstaller([string]$Script){
 function Wait-TestHealth {
   $deadline=[DateTime]::UtcNow.AddSeconds(45)
   do{
-    $health=Read-WidgetUpdateJson (Join-Path $data 'supervisor-status.json')
-    $presence=Read-WidgetUpdateJson (Join-Path $data 'presence.json')
+    # The supervisor may have the small JSON file open while publishing a heartbeat.
+    # Treat only a transient read/parse race as unavailable and retry to the deadline.
+    $health=$null;$presence=$null
+    try{
+      $health=Read-WidgetUpdateJson (Join-Path $data 'supervisor-status.json')
+      $presence=Read-WidgetUpdateJson (Join-Path $data 'presence.json')
+    }catch{
+      if($_.Exception-isnot [IO.IOException] -and $_.FullyQualifiedErrorId-notlike 'GetContentReaderIOError*' -and $_.FullyQualifiedErrorId-notlike '*ConvertFromJson*'){throw}
+    }
     if($health -and $health.taskName-eq $taskName -and $health.widgetRunning -and $presence -and $presence.visible -and ([DateTime]::UtcNow-[DateTime]$health.at).TotalSeconds-lt 10){
       Assert ([CleanInstallNative]::IsWindowVisible([IntPtr][long]$presence.widget)) 'real WPF window is visible'
       return

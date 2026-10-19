@@ -156,3 +156,9 @@ node gpt-niang-usage/runtime/control.mjs diagnostics 100
 GptGravityRenderLoop 保留 MeanStepMs/MaxStepMs（墙钟），新增 MeanPhysicsMs/MeanPoseMs/MeanPlacementMs 与 GetThreadTimes 的 MeanCpuMs。CPU 查询失败标记不可用，测试失败，不以零值冒充成功。Start 重置所有累计量；GetThreadTimes 返回值只用于累计 CPU 时间，不保存线程身份、创建时间或账号资料。性能检查维持 5 ms 平均 CPU 预算，实际帧率另查，供帧不足只在显式 CI 开关下打印 UNQUALIFIED；本地严格验收不加开关。
 
 测试的截止 DispatcherTimer 使用 Send 优先级，避免 Render 事件使后台优先级截止饿死。阶段测量在断言前打印，方便真实失败继续排查。数值测量和测试调整不等于动画算法加速。发布前核对所有工作流及精确提交的干净 ZIP 验收。
+
+### 阻塞后集中到达的有效渲染帧
+
+CI 的另一轮测得 inputHz=57.78、renderHz=53.83、meanCpuMs=0.994。发现限帧器按 Stopwatch 到达时间而非 RenderingTime 判断预算；同步窗口调用后，连续送达但 RenderingTime 不同的帧可能因到达间隔太近被误丢。修复只将 90 Hz 限帧预算改为渲染时间，物理 dt 仍为真实经过时间。
+
+managed-frames.test.ps1 通过反射停止到达时钟，注入六个间隔 1/60 秒的 RenderingEventArgs。旧代码只能处理部分帧并失败，修复后六帧全部保留；之后另行执行真实 WPF 帧率测量。不要把注入帧的数量当实际显示器帧率。同步更新干净安装验收轮询，对心跳文件正在发布时的短暂读写/解析竞争按原 45 秒截止重试，其他异常继续抛出。

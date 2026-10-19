@@ -103,12 +103,16 @@ public sealed class GptGravityRenderLoop {
         var frame=args as RenderingEventArgs;
         if(frame!=null){if(frame.RenderingTime==last)return;last=frame.RenderingTime;}
         double now=clock.Elapsed.TotalSeconds;
+        // Limit presentation frames, not bursty callback arrival times. Native
+        // placement can block until composition and compress subsequent arrivals.
+        // Physics still advances by real elapsed time below.
+        double presentation=frame==null?now:frame.RenderingTime.TotalSeconds;
         // Rendering can fire faster than scan-out. Keep a phase-based 90-Hz animation budget (headroom above the 60-Hz minimum)
         // instead of moving the layered HWND hundreds of times per second.
         if(Scene!=null){
-            if(now+0.0001<nextFrame)return;
+            if(presentation+0.0001<nextFrame)return;
             nextFrame+=1.0/TargetFps;
-            if(nextFrame<now-1.0/TargetFps)nextFrame=now+1.0/TargetFps;
+            if(nextFrame<presentation-1.0/TargetFps)nextFrame=presentation+1.0/TargetFps;
         }
         if(FrameCount==0)first=last;
         FrameCount++;
