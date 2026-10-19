@@ -148,3 +148,11 @@ node gpt-niang-usage/runtime/control.mjs diagnostics 100
 帧率测试新增独立的 C# CompositionTarget.Rendering 供帧探针，分别输出 inputHz、renderHz、hardwareQualified。默认严格运行仍要求至少 100 帧且原 58 Hz 容差门槛；每步预算、实际位置变化、脚本通知频率和输入处理能力也继续检查。共享 CI 显式使用 -AllowLimitedCompositor：仅当供帧本身低于 58 Hz 时允许完成供帧跟踪功能测试，并输出 60-Hz hardware acceptance UNQUALIFIED 通知，不视为 60 Hz 性能验收。供帧足够而处理不足仍失败；本地严格模式与发布前硬件验证不得使用此开关。
 
 发布工作流通过 workflow_call 复用完整 test.yml，并将 full-runtime 加入发布依赖；因此完整 Windows/macOS 作业失败会阻止发布。现有 1.4.2 标签和安装包不替换。本次仅修改测试、门禁及文档，不改变动画或安装运行时代码。后续发布前除干净 ZIP 验收外，还须在交互式 Windows 会话运行不带宽容开关的完整 run-windows-tests.ps1，并核对全部关联工作流结果。不得仅以某一个绿色 workflow 代表全部通过。
+
+## 1.4.3 · CPU 预算与窗口等待分开记录
+
+性能诊断 CI 的一次结果：inputHz=57.66、renderHz=56.20、meanStepMs=16.30、physicsMs=0.086、poseMs=0.033、placementMs=16.164。窗口移动占墙钟耗时的绝大部分。共享图形环境中的同步窗口调用可能等待合成，因此原来把墙钟 5 ms 当计算预算会误判；这不等于该 CI 已达到 60 Hz，也不能说明系统等待已被优化。
+
+GptGravityRenderLoop 保留 MeanStepMs/MaxStepMs（墙钟），新增 MeanPhysicsMs/MeanPoseMs/MeanPlacementMs 与 GetThreadTimes 的 MeanCpuMs。CPU 查询失败标记不可用，测试失败，不以零值冒充成功。Start 重置所有累计量；GetThreadTimes 返回值只用于累计 CPU 时间，不保存线程身份、创建时间或账号资料。性能检查维持 5 ms 平均 CPU 预算，实际帧率另查，供帧不足只在显式 CI 开关下打印 UNQUALIFIED；本地严格验收不加开关。
+
+测试的截止 DispatcherTimer 使用 Send 优先级，避免 Render 事件使后台优先级截止饿死。阶段测量在断言前打印，方便真实失败继续排查。数值测量和测试调整不等于动画算法加速。发布前核对所有工作流及精确提交的干净 ZIP 验收。

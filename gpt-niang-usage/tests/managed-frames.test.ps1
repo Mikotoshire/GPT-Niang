@@ -54,7 +54,8 @@ try{
   $script:gravityEnabled=$true;$script:gravityInertia=$true
   $script:gravity.SetTuning(0.5,0.25);$script:gravity.SetHorizontalPosition(300);$script:gravity.FlingFrom(600,100,0)
   $script:notifications=0;$script:gravityTimer.Add_Tick({$script:notifications++})
-  $pump=[Windows.Threading.DispatcherFrame]::new();$finish=[Windows.Threading.DispatcherTimer]::new()
+  # A background-priority deadline can starve behind Rendering on a software GPU.
+  $pump=[Windows.Threading.DispatcherFrame]::new();$finish=[Windows.Threading.DispatcherTimer]::new([Windows.Threading.DispatcherPriority]::Send)
   $finish.Tag=$pump;$finish.Interval=[TimeSpan]::FromSeconds(2)
   $finish.Add_Tick({param($sender,$event)$sender.Stop();$sender.Tag.Continue=$false})
   $probe=[FrameInputProbe]::new()
@@ -62,7 +63,7 @@ try{
   $loop=$script:gravityTimer;$loop.Stop()
   $probe.Dispose()
   # Print on failure too; otherwise the first failing assertion hides the useful measurements.
-  Write-Output ('MEASURE: inputHz='+[Math]::Round($probe.Fps,2)+' renderHz='+[Math]::Round($loop.Fps,2)+' frames='+$loop.FrameCount+' meanStepMs='+[Math]::Round($loop.MeanStepMs,3)+' physicsMs='+[Math]::Round($loop.MeanPhysicsMs,3)+' poseMs='+[Math]::Round($loop.MeanPoseMs,3)+' placementMs='+[Math]::Round($loop.MeanPlacementMs,3)+' maxStepMs='+[Math]::Round($loop.MaxStepMs,3))
+  Write-Output ('MEASURE: inputHz='+[Math]::Round($probe.Fps,2)+' renderHz='+[Math]::Round($loop.Fps,2)+' frames='+$loop.FrameCount+' meanStepMs='+[Math]::Round($loop.MeanStepMs,3)+' meanCpuMs='+[Math]::Round($loop.MeanCpuMs,3)+' physicsMs='+[Math]::Round($loop.MeanPhysicsMs,3)+' poseMs='+[Math]::Round($loop.MeanPoseMs,3)+' placementMs='+[Math]::Round($loop.MeanPlacementMs,3)+' maxStepMs='+[Math]::Round($loop.MaxStepMs,3))
   if($loop.LastError){throw $loop.LastError}
   # The requirement is 60 Hz when supplied; the 90-Hz cap is headroom, not a
   # guarantee to process every compositor callback above the required rate.
@@ -73,7 +74,10 @@ try{
     if(!$AllowLimitedCompositor -or $inputHz-ge 58){throw ('60-Hz render cadence missed: input='+$inputHz+' processed='+$loop.Fps)}
     Write-Output ('::notice::60-Hz hardware acceptance UNQUALIFIED: hosted compositor input='+[Math]::Round($inputHz,2)+' Hz. Input tracking is tested; a local strict run is still required before release.')
   }
-  if($loop.MeanStepMs-ge 5){throw 'Managed step consumes too much of the 16.67-ms frame budget'}
+  # Keep the 5-ms CPU budget. SetWindowPos can wait for composition without using
+  # CPU; actual wall-time cadence is checked separately above, never inferred here.
+  if(!$loop.CpuTimingAvailable){throw 'Render CPU timing is unavailable'}
+  if($loop.MeanCpuMs-ge 5){throw ('Managed step exceeds the 5-ms CPU budget: '+$loop.MeanCpuMs)}
   if($script:notifications-gt 10){throw 'PowerShell must not be called every animation frame'}
   if($loop.PositionUpdates-lt [Math]::Min(60,[Math]::Floor($loop.FrameCount*0.5))){throw 'Frame callbacks must include actual changing native positions'}
   Sync-WidgetGravityPosition

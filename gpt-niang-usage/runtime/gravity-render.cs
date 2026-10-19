@@ -26,6 +26,8 @@ public sealed class GptGravityRenderLoop {
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
     [DllImport("user32.dll")] static extern bool IsIconic(IntPtr h);
     [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h,IntPtr after,int x,int y,int w,int height,uint flags);
+    [DllImport("kernel32.dll")] static extern IntPtr GetCurrentThread();
+    [DllImport("kernel32.dll")] static extern bool GetThreadTimes(IntPtr thread,out long created,out long exited,out long kernel,out long user);
     public bool IsEnabled { get; private set; }
     public GptGravityScene Scene { get; set; }
     public event EventHandler Tick;
@@ -41,8 +43,15 @@ public sealed class GptGravityRenderLoop {
     public double MeanPhysicsMs { get { return MeanMilliseconds(physicsTicks); } }
     public double MeanPoseMs { get { return MeanMilliseconds(poseTicks); } }
     public double MeanPlacementMs { get { return MeanMilliseconds(placementTicks); } }
+    public double MeanCpuMs { get { return FrameCount>0?cpuTicks/10000.0/FrameCount:0; } }
+    public bool CpuTimingAvailable { get; private set; }
+    long cpuTicks;
     long physicsTicks,poseTicks,placementTicks;
     double MeanMilliseconds(long ticks) { return FrameCount>0?1000.0*ticks/Stopwatch.Frequency/FrameCount:0; }
+    static long ThreadCpuTicks() {
+        long created,exited,kernel,user;
+        return GetThreadTimes(GetCurrentThread(),out created,out exited,out kernel,out user)?kernel+user:-1;
+    }
     public string LastError { get; private set; }
     TimeSpan last = TimeSpan.MinValue, first;
     readonly Stopwatch clock=new Stopwatch(), cost=new Stopwatch();
@@ -51,6 +60,7 @@ public sealed class GptGravityRenderLoop {
     public void Start() {
         if(IsEnabled)return;IsEnabled=true;last=TimeSpan.MinValue;FrameCount=SlowFrames=0;MaxStepMs=TotalStepMs=0;PositionUpdates=0;LastError=null;
         physicsTicks=poseTicks=placementTicks=0;
+        cpuTicks=0;CpuTimingAvailable=true;
         previous=notified=nextFrame=0;clock.Restart();CompositionTarget.Rendering+=Render;
     }
     public void Stop() { if(!IsEnabled)return;IsEnabled=false;CompositionTarget.Rendering-=Render; }
@@ -105,9 +115,12 @@ public sealed class GptGravityRenderLoop {
         double dt=now-previous;previous=now;
         if(dt>1.0/40)SlowFrames++;
         if(Scene==null){Notify();return;}
-        cost.Restart();bool active;
+        long cpuStart=ThreadCpuTicks();cost.Restart();bool active;
         try{active=Step(dt);}catch(Exception e){LastError=e.ToString();active=false;}
         cost.Stop();TotalStepMs+=cost.Elapsed.TotalMilliseconds;MaxStepMs=Math.Max(MaxStepMs,cost.Elapsed.TotalMilliseconds);
+        long cpuEnd=ThreadCpuTicks();
+        if(cpuStart<0 || cpuEnd<cpuStart)CpuTimingAvailable=false;
+        else cpuTicks+=cpuEnd-cpuStart;
         if(!active){Stop();Notify();}
         else if(now-notified>=0.25){notified=now;Notify();}
     }
