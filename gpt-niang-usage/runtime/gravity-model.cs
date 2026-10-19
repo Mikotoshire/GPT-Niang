@@ -53,6 +53,7 @@ public sealed class GptGravityModel {
         ceilingLimit = widthLimit = -1;
     }
     void OnContact(Contact contact, ref Manifold manifold) {
+        if(!contact.IsTouching)return;
         if (contact.FixtureA == floor || contact.FixtureB == floor) {
             floorContact = body.LinearVelocity.Y <= 0;
             stopLanding = !multiple || PeakHeight <= TapApex + 0.5;
@@ -66,6 +67,7 @@ public sealed class GptGravityModel {
         bounds = world.CreateBody(Vector2.Zero, 0, BodyType.Static);
         float right = (float)(width / Units), top = (float)(ceiling / Units);
         floor = bounds.CreateEdge(new Vector2(-1,-0.25f), new Vector2(right+1,-0.25f));
+        floor.Shape.Radius = 0; // The circle already defines the exact visible-foot boundary.
         bounds.CreateEdge(new Vector2(-0.25f,-1),new Vector2(-0.25f,top+1));
         bounds.CreateEdge(new Vector2(right+0.25f,-1),new Vector2(right+0.25f,top+1));
         bounds.CreateEdge(new Vector2(-1,top+0.25f),new Vector2(right+1,top+0.25f));
