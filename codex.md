@@ -123,4 +123,4 @@ node gpt-niang-usage/runtime/control.mjs diagnostics 100
 
 输出 ZIP、SHA256SUMS、RELEASE-AUDIT 摘要和发布说明；包内 SOURCE.json 指明源码提交，FILE-MANIFEST.json 记录文件哈希。ZIP 时间固定，重复构建应逐字节相同。`test_release.py` 使用虚构 Git 仓库和受污染的工作区验证不会打包机器配置；已提交的坏模板则拒绝打包。扫描结果仅输出文件名/规则，不回显潜在秘密。
 
-发布前运行 Node、Windows 关键回归、Python 打包测试和压缩包内容检查；从压缩包解压的副本检查必需文件、版本、PowerShell 语法和 Node 模块。记录验证限制，不声称未经执行的新设备完整安装已通过。保持安装配置、账户数据、偏好、额度和真实诊断本地保存。发布只上传本次审查的 ZIP、SHA256SUMS、RELEASE-AUDIT；不上传工作目录或 Git bundle。
+发布前运行 Node、Windows 关键回归、Python 打包测试和压缩包内容检查；从压缩包解压的副本检查必需文件、版本、PowerShell 语法和 Node 模块。记录验证限制，不声称未经执行的新设备完整安装已通过。保持安装配置、账户数据、偏好、额度和真实诊断本地保存。发布只上传本次审查的 ZIP、SHA256SUMS、RELEASE-AUDIT；不上传工作目录或 Git bundle。浏览器文件上传受限时，允许经本次显式发布授权手动触发 GitHub Actions：只在本仓库 main、通过 Windows 验证后，以短期仓库令牌构建并创建新的预发布；不覆盖已有标签或资产。

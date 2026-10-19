@@ -2,6 +2,12 @@ name: Validate Windows maintenance release
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish the reviewed Windows preview after validation
+        required: true
+        type: boolean
+        default: false
   pull_request:
     paths:
       - .github/workflows/release.yml
@@ -36,5 +42,34 @@ jobs:
           & gpt-niang-usage/tests/startup-directory.test.ps1
       - name: Build committed and audited Windows bundle
         run: python scripts/build-release.py
-# Publishing is explicit after local review. No automatic upstream/Mac release,
-# tag moves, asset clobbering or user credentials in this workflow.
+  publish:
+    if: github.event_name == 'workflow_dispatch' && inputs.publish && github.ref == 'refs/heads/main' && github.repository == 'Mikotoshire/GPT-Niang'
+    needs: windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build the reviewed committed source
+        run: python scripts/build-release.py
+      - name: Publish a new preview without replacing existing releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(python -c 'import json;print(json.load(open("gpt-niang-usage/package.json"))["version"])')"
+          tag="mikotoshire-v${version}-preview.1"
+          current="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/main" --jq .object.sha)"
+          test "$current" = "$GITHUB_SHA" || { echo "Main changed; review the new source before publishing." >&2; exit 1; }
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to replace tags or assets." >&2
+            exit 1
+          fi
+          gh release create "$tag" "dist/gpt-niang-mikotoshire-v${version}-windows.zip" dist/SHA256SUMS.txt dist/RELEASE-AUDIT.json --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "GPT娘 · Mikotoshire 维护版 ${version} · Windows 测试版" --notes-file dist/release-notes.md --prerelease --draft
+          gh release edit "$tag" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
+# Only a manually dispatched run on this repository's main can publish.
+# The runner uses the short-lived repository token, never personal credentials.
