@@ -8,11 +8,14 @@ using System;
 using System.Windows.Media;
 public sealed class FrameInputProbe : IDisposable {
   public long Count; public TimeSpan First,Last=TimeSpan.MinValue;
+  readonly System.Collections.Generic.Dictionary<long,bool> seen=new System.Collections.Generic.Dictionary<long,bool>();
   public double Fps {get {return Count>1?(Count-1)/(Last-First).TotalSeconds:0;}}
   public FrameInputProbe(){CompositionTarget.Rendering+=Observe;}
   void Observe(object sender,EventArgs args){
-    var frame=args as RenderingEventArgs;if(frame==null || frame.RenderingTime==Last)return;
-    Last=frame.RenderingTime;if(Count++==0)First=Last;
+    var frame=args as RenderingEventArgs;if(frame==null || seen.ContainsKey(frame.RenderingTime.Ticks))return;
+    var time=frame.RenderingTime;seen.Add(time.Ticks,true);
+    if(Count++==0)First=Last=time;
+    else {if(time<First)First=time;if(time>Last)Last=time;}
   }
   public void Dispose(){CompositionTarget.Rendering-=Observe;}
 }
@@ -51,6 +54,16 @@ $script:widgetHandle=([Windows.Interop.WindowInteropHelper]::new($script:window)
 $probe=$null
 try{
   $null=Set-WidgetPixelSize 1
+  $probeCheck=[FrameInputProbe]::new()
+  $probeFlags=[Reflection.BindingFlags]'Instance,NonPublic'
+  $observe=$probeCheck.GetType().GetMethod('Observe',$probeFlags)
+  foreach($milliseconds in @(0,25,16.666667,25,33.333333,33.333333)){
+    $event=[Activator]::CreateInstance([Windows.Media.RenderingEventArgs],$probeFlags,$null,@([TimeSpan]::FromMilliseconds(1000+$milliseconds)),$null)
+    $null=$observe.Invoke($probeCheck,@($null,$event))
+  }
+  $probeCheck.Dispose()
+  if($probeCheck.Count-ne 4){throw 'Compositor probe counted reentrant/out-of-order duplicate presentation timestamps'}
+  Write-Output 'PASS: input probe counts each presentation timestamp once despite reentrant ordering'
   $script:gravityEnabled=$true;$script:gravityInertia=$true
   $script:gravity.SetTuning(0.5,0.25);$script:gravity.SetHorizontalPosition(300);$script:gravity.FlingFrom(600,100,0)
   # Unique presentation frames can arrive in a burst after a native window call.
@@ -92,8 +105,9 @@ try{
   $pump=[Windows.Threading.DispatcherFrame]::new();$finish=[Windows.Threading.DispatcherTimer]::new([Windows.Threading.DispatcherPriority]::Send)
   $finish.Tag=$pump;$finish.Interval=[TimeSpan]::FromSeconds(2)
   $finish.Add_Tick({param($sender,$event)$sender.Stop();$sender.Tag.Continue=$false})
+  Start-WidgetGravityTimer
   $probe=[FrameInputProbe]::new()
-  Start-WidgetGravityTimer;$finish.Start();[Windows.Threading.Dispatcher]::PushFrame($pump)
+  $finish.Start();[Windows.Threading.Dispatcher]::PushFrame($pump)
   $loop=$script:gravityTimer;$loop.Stop()
   $probe.Dispose()
   # Print on failure too; otherwise the first failing assertion hides the useful measurements.
