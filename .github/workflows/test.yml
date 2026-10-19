@@ -1,4 +1,4 @@
-name: Verify Windows runtime and macOS companion
+name: Verify Windows runtime
 on:
   pull_request:
   push:
@@ -30,20 +30,3 @@ jobs:
         run: npm run test:windows -- -AllowLimitedCompositor
       - name: Verify Windows packaging
         run: python scripts/build-release.py
-  macos:
-    runs-on: macos-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Shared Node runtime and crash recovery tests
-        working-directory: gpt-niang-usage
-        run: npm test
-      - name: Swift behavior tests
-        run: swift test --package-path macos
-      - name: Build native app bundle
-        run: ./script/build_and_run.sh --build-only
-      - name: Verify app signature
-        run: codesign --verify --deep --strict dist/GPTNiangMac.app

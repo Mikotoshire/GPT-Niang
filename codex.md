@@ -184,3 +184,7 @@ managed-frames.test.ps1 通过反射停止到达时钟，注入六个间隔 1/60
 ### 60 Hz 硬件资格与功能 CI
 
 共享 CI 的输入常在 57～59 Hz，低于请求的 60 Hz。限定 CI 模式统一在 inputHz < 60 时标记 hardwareQualified=false / UNQUALIFIED；即便测值偶尔落在本机 58 Hz 容差之内，也不得把它宣称为 60 Hz 硬件验收通过。该模式仍要求输入跟踪比例、CPU 预算、真实位置变化及所有独立限帧/物理断言通过。默认本机模式保持原 58 Hz 测量容差与至少 100 帧要求，没有降低硬件性能目标。足够输入却处理不足继续失败。CI 功能通过与硬件性能验收是不同结论，发布说明须明确。
+
+## Windows-only maintenance CI
+
+AI-generated maintenance change; insufficiently validated. At the user's request, test.yml now runs only the Windows job. The reusable release gate still requires the complete Windows runtime, installer, WPF, Node and packaging checks. Upstream macOS sources and historical results remain for provenance; this fork publishes and maintains Windows only. Existing release tags and assets are unchanged.

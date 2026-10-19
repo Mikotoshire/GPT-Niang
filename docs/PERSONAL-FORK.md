@@ -6,7 +6,7 @@
 
 ## 范围
 
-这是 Mikotoshire 维护的 Windows 分支，用 GitHub 备份代码和迁移设备；1.4.0 起提供遵守现有许可的非商业小范围测试下载。角色原图不变，WPF 使用高质量图像重采样。Windows 的上游 Release 更新已禁用，自动更新开关不可启用。`runtime/fork-policy.json` 也保护不包含 `.git` 的源码副本。macOS 源码保留自上游，本分支尚未适配或验证其个人版更新策略，请勿将上游 Mac 安装包视作这个 Windows 个人版本。
+这是 Mikotoshire 维护的 Windows 分支，用 GitHub 备份代码和迁移设备；1.4.0 起提供遵守现有许可的非商业小范围测试下载。角色原图不变，WPF 使用高质量图像重采样。Windows 的上游 Release 更新已禁用，自动更新开关不可启用。`runtime/fork-policy.json` 也保护不包含 `.git` 的源码副本。本分支仅运行 Windows CI 和提供 Windows 发布包。macOS 源码保留自上游，本分支尚未适配或验证其个人版更新策略，请勿将上游 Mac 安装包视作这个 Windows 个人版本。
 
 代码和一般文档继续按 MIT 许可使用，保留原版权和许可文本。角色图片不属于 MIT 许可，仅在素材声明允许的非商业项目副本中随项目使用，不单独发布素材包或将其用于商业用途。语录遵循 `gpt-niang-usage/assets/quotes-LICENSE.txt`。这不是上游作者或 OpenAI 官方发布的版本。
 
