@@ -333,6 +333,9 @@ try{
   Remove-Item -LiteralPath (Join-Path $script:dataDir 'status.json')
   Update-Quota
   Assert-Equal $script:status $null 'Removed snapshot is cleared'
+  $beforeBrush=$script:ui.ShortLeft.Foreground
+  Update-Quota
+  Assert-Equal ([object]::ReferenceEquals($beforeBrush,$script:ui.ShortLeft.Foreground)) $true 'Unchanged quota colours reuse their brush instead of invalidating the visual'
   Assert-Equal $script:ui.ShortRow.Visibility Visible 'Loading is not treated as unsupported'
   Write-Output 'PASS: two reset phases, native midpoint timer, restart and close timing, local dates, five timezones, daylight saving, layout and quota edge cases'
 }finally{
