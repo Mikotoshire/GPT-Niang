@@ -184,6 +184,7 @@ public sealed class GptFrameProbe : IDisposable {
 // Configuration is refreshed by PowerShell at input/layout boundaries, never per frame.
 public sealed class GptGravityScene {
     public GptGravityModel Model;
+    public TranslateTransform Offset;
     public ScaleTransform Scale;
     public IntPtr Widget, Host;
     public bool Follow, Free;
@@ -261,11 +262,20 @@ public sealed class GptGravityRenderLoop {
         if(s.Scale.ScaleX!=s.Model.ScaleX)s.Scale.ScaleX=s.Model.ScaleX;
         if(s.Scale.ScaleY!=s.Model.ScaleY)s.Scale.ScaleY=s.Model.ScaleY;
         poseTicks+=Stopwatch.GetTimestamp()-started;started=Stopwatch.GetTimestamp();
-        int x=s.Free?(int)Math.Round(s.FrameLeft+s.Model.HorizontalPosition*s.Unit):
-            s.Anchor=="right"?(int)Math.Round(s.FrameRight-s.Width-s.Right*s.Dpi):(int)Math.Round(s.FrameLeft+s.Left*s.Dpi);
-        x=Math.Max(s.FrameLeft,Math.Min(s.FrameRight-s.Width,x));
+        double exactX=s.Free?s.FrameLeft+s.Model.HorizontalPosition*s.Unit:
+            s.Anchor=="right"?s.FrameRight-s.Width-s.Right*s.Dpi:s.FrameLeft+s.Left*s.Dpi;
+        exactX=Math.Max(s.FrameLeft,Math.Min(s.FrameRight-s.Width,exactX));
+        int x=(int)Math.Round(exactX);
         int bottom=(int)Math.Round(s.Model.Height*s.Unit-s.Padding);
-        int y=(int)Math.Round(s.FrameBottom-s.Height+s.Padding-s.Model.Height*s.Unit);
+        int y=s.FrameBottom-s.Height-bottom;
+        double exactY=s.FrameBottom-s.Height+s.Padding-s.Model.Height*s.Unit;
+        // Native HWND coordinates are integers. Preserve the genuine fractional
+        // position in the visual tree instead of discarding subpixel motion.
+        if(s.Offset!=null){
+            double ox=(exactX-x)/s.Unit,oy=(exactY-y)/s.Unit;
+            if(s.Offset.X!=ox)s.Offset.X=ox;
+            if(s.Offset.Y!=oy)s.Offset.Y=oy;
+        }
         string anchor=s.Free?"free":s.Anchor;
         double left=(x-s.FrameLeft)/s.Dpi,right=(s.FrameRight-x-s.Width)/s.Dpi;
         bool moved=!s.HasPose || s.X!=x || s.Y!=y;

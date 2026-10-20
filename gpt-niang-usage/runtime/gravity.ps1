@@ -85,7 +85,7 @@ function Set-WidgetGravityScene {
   if(!(Test-WidgetPlacementFrame $frame $dpi)){return $false}
   $geometry=Get-WidgetGravityGeometry
   $scene=[GptGravityScene]::new()
-  $scene.Model=$script:gravity;$scene.Scale=$script:ui.GravityScale
+  $scene.Model=$script:gravity;$scene.Scale=$script:ui.GravityScale;$scene.Offset=$script:ui.MotionOffset
   $scene.Widget=$script:widgetHandle;$scene.Host=if($script:hostHandle){$script:hostHandle}else{[IntPtr]::Zero};$scene.Follow=$script:followHost;$scene.Free=$script:gravityInertia
   $scene.Width=$geometry.Width;$scene.Height=$geometry.Height;$scene.Unit=$geometry.Unit;$scene.Padding=$geometry.Padding;$scene.Dpi=$dpi
   $scene.FrameLeft=$frame.Left;$scene.FrameTop=$frame.Top;$scene.FrameRight=$frame.Right;$scene.FrameBottom=$frame.Bottom
@@ -114,6 +114,7 @@ function Set-WidgetGravityPose {
   $script:ui.GravityScale.ScaleY=$script:gravity.ScaleY
 }
 function Set-WidgetGravityMode([bool]$Enabled) {
+  if($script:ui.MotionOffset){$script:ui.MotionOffset.X=0;$script:ui.MotionOffset.Y=0}
   $script:gravitySampler.Stop()
   $script:gravityEnabled=$Enabled
   $script:gravityInertia=$false
@@ -136,6 +137,7 @@ function Set-WidgetGravityMode([bool]$Enabled) {
   $script:lastPosition=$null;Save-Settings;Tick-Widget;Start-WidgetGravityTimer
 }
 function Begin-WidgetGravityDrag {
+  if($script:ui.MotionOffset){$script:ui.MotionOffset.X=0;$script:ui.MotionOffset.Y=0}
   $script:gravityInertia=$false
   $script:gravitySampler.Start()
   $script:gravityTimer.Stop();$script:gravity.BeginDrag();Set-WidgetGravityPose

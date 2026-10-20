@@ -41,7 +41,7 @@ if($LASTEXITCODE-ne 0){throw 'Impact squish regression failed.'}
 if($LASTEXITCODE-ne 0){throw 'Quota cache regression failed.'}
 & $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'plugin-registration.test.ps1')
 if($LASTEXITCODE-ne 0){throw 'Plugin registration regression failed.'}
-foreach($name in @('async-presence.test.ps1','physics-defaults.test.ps1','horizontal-impact.test.ps1','floor-contact.test.ps1','managed-frames.test.ps1','motion-tuning.test.ps1','gravity.test.ps1','gravity-wpf.test.ps1','fork-policy.test.ps1','installation.test.ps1','update.test.ps1','lifecycle.test.ps1','entrypoint.test.ps1','quote-layout.test.ps1','size.test.ps1','display.test.ps1','desktop-mode.test.ps1','drag-sizing.test.ps1','settings-menu.test.ps1','host-ready.test.ps1')){
+foreach($name in @('subpixel-motion.test.ps1','async-presence.test.ps1','physics-defaults.test.ps1','horizontal-impact.test.ps1','floor-contact.test.ps1','managed-frames.test.ps1','motion-tuning.test.ps1','gravity.test.ps1','gravity-wpf.test.ps1','fork-policy.test.ps1','installation.test.ps1','update.test.ps1','lifecycle.test.ps1','entrypoint.test.ps1','quote-layout.test.ps1','size.test.ps1','display.test.ps1','desktop-mode.test.ps1','drag-sizing.test.ps1','settings-menu.test.ps1','host-ready.test.ps1')){
   if($name-eq 'settings-menu.test.ps1'){& $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File $PSCommandPath -SettingsMenuOnly}
   elseif($name-eq 'managed-frames.test.ps1'){
     $frameArgs=@('-NoProfile','-STA','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot $name))

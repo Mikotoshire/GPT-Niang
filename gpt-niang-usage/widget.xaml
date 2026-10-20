@@ -25,6 +25,7 @@
   </Window.Resources>
   <Viewbox x:Name="ScaleHost" Stretch="Uniform">
   <Canvas x:Name="AnimationStage" Width="378" Height="378">
+  <Canvas.RenderTransform><TranslateTransform x:Name="MotionOffset"/></Canvas.RenderTransform>
   <Canvas x:Name="Root" Canvas.Left="14" Canvas.Top="14" Width="350" Height="350" RenderTransformOrigin="0.5,1">
     <Canvas.RenderTransform><TransformGroup><ScaleTransform x:Name="PressScale"/><ScaleTransform x:Name="FacingScale"/></TransformGroup></Canvas.RenderTransform>
     <Canvas x:Name="Bubble" Width="350" Height="239" Cursor="Hand" RenderTransformOrigin="0.4425,0.36">
