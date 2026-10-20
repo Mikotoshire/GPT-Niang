@@ -11,6 +11,8 @@ if($WidgetOnly){
   return
 }
 $powerShell=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+& $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'energy-controls.test.ps1')
+if($LASTEXITCODE-ne 0){throw 'Energy controls regression failed.'}
 & $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'collision-energy.test.ps1')
 if($LASTEXITCODE-ne 0){throw 'Collision energy regression failed.'}
 & $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'elastic-impact.test.ps1')

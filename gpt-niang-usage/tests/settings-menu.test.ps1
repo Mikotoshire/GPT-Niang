@@ -24,7 +24,7 @@ Initialize-WidgetUpdater
 $script:window=New-Object Windows.Window
 $script:collapsed=$true;$script:bubbleMode='quota';$script:followHost=$true;$script:desktopTopmost=$true
 $script:scale=1.0;$script:soundOn=$true;$script:soundVolume=0.9;$script:bubbleTapAdvance=$false;$script:hideMenu=$false
-$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0
+$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0;$script:energyConversion=40.96
 $script:colorMode='mixed';$script:colorChance=0.5;$script:colorTextChance=3;$script:colorPaused=$false
 try{
   Initialize-WidgetSettingsMenu
@@ -65,6 +65,14 @@ try{
   Assert-Equal $script:settingsMenuUi.TapCompressionText.Text '2.25×' 'Tap compression label updates'
   Assert-Equal $script:elasticStrength 1.5 'Tap compression leaves energy unchanged'
   Assert-Equal $script:squishStrength 2.25 'Tap compression leaves landing squish unchanged'
+  Assert-Equal $script:settingsMenuUi.EnergyConversion.Minimum 0 'Conversion slider allows zero'
+  Assert-Equal $script:settingsMenuUi.ElasticStrength.Parent.Children[0].Children[0].Text '起跳能量' 'Old shared slider has an explicit launch-only label'
+  Assert-Equal $script:settingsMenuUi.EnergyConversion.IsSnapToTickEnabled $false 'Migration preserves fractional efficiency'
+  Assert-Equal $script:settingsMenuUi.EnergyConversion.Maximum 85 'Conversion slider retains losses'
+  $script:settingsMenuUi.EnergyConversion.Value=65
+  Assert-Equal $script:energyConversion 65 'Conversion updates preference'
+  Assert-Equal $script:settingsMenuUi.EnergyConversionText.Text '65%' 'Conversion displays a percentage'
+  Assert-Equal $script:elasticStrength 1.5 'Conversion leaves manual launch energy unchanged'
   $expected=@('查看额度','换一句台词','刷新额度','编辑我的语录','显示与位置','外观设置','重力与弹性','声音与点击','更新','退出 GPT 娘')
   $actual=@($script:context.Items|Where-Object{$_.Header-is [string]}|ForEach-Object{$_.Header})
   Assert-Equal ($actual-join '|') ($expected-join '|') 'Menu entries and removed title block'

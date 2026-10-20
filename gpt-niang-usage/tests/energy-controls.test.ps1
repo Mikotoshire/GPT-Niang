@@ -33,6 +33,9 @@ foreach($q in @(1,2,3)){
   $depths+=,$depth
 }
 Assert ($depths[1]-gt $depths[0]+.02 -and $depths[2]-gt $depths[1]+.01 -and $depths[2]-lt .72) 'Q keeps a visible response at high energy without a hard plateau'
+$m=Contact 85 .25
+for($i=0;$i-lt 12000 -and $m.Active;$i++){$m.Advance(1.0/240,1000)}
+Assert (!$m.Active -and $m.StoredElasticEnergy-eq 0 -and $m.ScaleY-eq 1) 'Maximum efficiency and minimum stop threshold eventually settle'
 'PASS: independent conversion slider, zero/max/default, launch separation, retention and responsive Q range'
 function Import-TestFunction($file,$name){
   $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText($file),[ref]$tokens,[ref]$errors)
@@ -43,7 +46,7 @@ $widget=Join-Path $AppDir 'widget.ps1'
 foreach($name in @('Get-WidgetEnergyConversionPreference','Save-Settings')){. ([scriptblock]::Create((Import-TestFunction $widget $name)))}
 . ([scriptblock]::Create((Import-TestFunction (Join-Path $AppDir 'runtime/gravity.ps1') 'Set-WidgetPhysicsTuning')))
 foreach($legacy in @(.25,1,1.5,3)){
-  Assert ([Math]::Abs((Get-WidgetEnergyConversionPreference @{} $legacy)-[Math]::Min(85,40.96*$legacy))-lt 1e-8) 'Missing conversion setting migrates old retention exactly'
+  Assert ([Math]::Abs((Get-WidgetEnergyConversionPreference @{} $legacy)-[Math]::Min(85.0,40.96*$legacy))-lt 1e-8) 'Missing conversion setting migrates old retention exactly'
 }
 foreach($value in @(0,40.96,65,85)){
   Assert ((Get-WidgetEnergyConversionPreference @{energyConversion=$value} 3)-eq $value) 'Explicit efficiency including zero overrides migration'

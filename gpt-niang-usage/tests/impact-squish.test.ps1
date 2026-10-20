@@ -19,7 +19,7 @@ for($i=0;$i-lt 300;$i++){
     $maxStrong=[Math]::Max($maxStrong,$models[0].ScaleY-$models[2].ScaleY)
   }
 }
-Assert ($maxDefault-gt 0.04 -and [Math]::Abs($maxStrong-3*$maxDefault)-lt 1e-8) 'Slider must scale speed-linked landing compression'
+Assert ($maxDefault-gt 0.04 -and $maxStrong-gt $maxDefault -and $maxStrong-lt 3*$maxDefault) 'Slider increases compression with smooth saturation'
 foreach($m in $models){Assert ($m.ScaleX-eq 1 -and $m.ScaleY-eq 1 -and !$m.Active) 'Landing pulse must fully recover'}
 $m.SetImpactSquish(2.25);$m.Reset();Assert ($m.ImpactSquish-eq 2.25) 'Reset retains the setting'
 foreach($invalid in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetImpactSquish($invalid);Assert ($m.ImpactSquish-eq 1) 'Nonfinite tuning uses default'}

@@ -115,7 +115,13 @@ $script:statusStamp=0
 $script:offsetRight=0.0;$script:offsetBottom=0.0;$script:offsetLeft=$null;$script:anchor='right';$script:side='right';$script:scale=1.0;$script:collapsed=$true
 $script:soundOn=$true;$script:soundVolume=0.9;$script:bubbleTapAdvance=$false;$script:hideMenu=$false
 $script:followHost=$true;$script:desktopTopmost=$false;$script:desktopLeft=$null;$script:desktopTop=$null
-$script:gravityEnabled=$false;$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0
+function Get-WidgetEnergyConversionPreference($settings,[double]$legacyStrength=1) {
+  # Migrate the former shared control once; explicit zero remains a valid preference.
+  if($null-ne $settings.energyConversion){try{$value=[double]$settings.energyConversion;if(![double]::IsNaN($value) -and $value-ge 0 -and $value-le 85){return $value}}catch{}}
+  if([double]::IsNaN($legacyStrength) -or [double]::IsInfinity($legacyStrength) -or $legacyStrength-lt 0.25 -or $legacyStrength-gt 3){$legacyStrength=1}
+  return [Math]::Min(85.0,40.96*$legacyStrength)
+}
+$script:gravityEnabled=$false;$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0;$script:energyConversion=40.96
 $script:hostReadiness=New-WidgetReadinessState
 $script:bubbleMode='quota';$script:sceneStartedAt=0;$script:sceneDeadline=0;$script:sceneTimer=$null;$script:sceneRevision=0
 $script:resetTimeMode='countdown';$script:resetPhaseTimer=$null
@@ -140,8 +146,9 @@ try{$settings=Get-Content -LiteralPath $settingsFile -Raw -Encoding UTF8 | Conve
   if($null-ne $settings.colorPaused){$script:colorPaused=[bool]$settings.colorPaused}
   if($null-ne $settings.followHost){$script:followHost=[bool]$settings.followHost}
   if($null-ne $settings.mirrorCharacter){$script:mirrorCharacter=[bool]$settings.mirrorCharacter}
-  if($null-ne $settings.gravityStrength){$v=[double]$settings.gravityStrength;if(![double]::IsNaN($v) -and $v-ge 0.5 -and $v-le 4){$script:gravityStrength=$v}}
-  if($null-ne $settings.elasticStrength){$v=[double]$settings.elasticStrength;if(![double]::IsNaN($v) -and $v-ge 0.25 -and $v-le 3){$script:elasticStrength=$v}}
+  if($null-ne $settings.gravityStrength){try{$v=[double]$settings.gravityStrength;if(![double]::IsNaN($v) -and $v-ge 0.5 -and $v-le 4){$script:gravityStrength=$v}}catch{}}
+  if($null-ne $settings.elasticStrength){try{$v=[double]$settings.elasticStrength;if(![double]::IsNaN($v) -and $v-ge 0.25 -and $v-le 3){$script:elasticStrength=$v}}catch{}}
+  $script:energyConversion=Get-WidgetEnergyConversionPreference $settings $script:elasticStrength
   if($null-ne $settings.squishStrength){try{$v=[double]$settings.squishStrength;if(![double]::IsNaN($v) -and $v-ge 0 -and $v-le 3){$script:squishStrength=$v}}catch{}}
   if($null-ne $settings.animationSpeed){try{$v=[double]$settings.animationSpeed;if(![double]::IsNaN($v) -and $v-ge 0.25 -and $v-le 3){$script:animationSpeed=$v}}catch{}}
   if($null-ne $settings.tapCompression){try{$v=[double]$settings.tapCompression;if(![double]::IsNaN($v) -and $v-ge 0 -and $v-le 3){$script:tapCompression=$v}}catch{}}
@@ -154,7 +161,7 @@ function Write-WidgetJson($file,$value){
   $temp=$file+'.tmp';[IO.File]::WriteAllText($temp,($value|ConvertTo-Json -Depth 6),[Text.UTF8Encoding]::new($false))
   if([IO.File]::Exists($file)){[IO.File]::Replace($temp,$file,($file+'.bak'),$true)}else{[IO.File]::Move($temp,$file)}
 }
-function Save-Settings {Write-WidgetJson $settingsFile @{layoutVersion=2;right=$script:offsetRight;left=$script:offsetLeft;bottom=$script:offsetBottom;anchor=$script:anchor;side=$script:side;scale=$script:scale;collapsed=$script:collapsed;soundOn=$script:soundOn;soundVolume=$script:soundVolume;bubbleTapAdvance=$script:bubbleTapAdvance;hideMenu=$script:hideMenu;colorMode=$script:colorMode;colorChance=$script:colorChance;colorTextChance=$script:colorTextChance;colorPaused=$script:colorPaused;followHost=$script:followHost;desktopTopmost=$script:desktopTopmost;desktopLeft=$script:desktopLeft;desktopTop=$script:desktopTop;gravityEnabled=$script:gravityEnabled;mirrorCharacter=$script:mirrorCharacter;gravityStrength=$script:gravityStrength;elasticStrength=$script:elasticStrength;squishStrength=$script:squishStrength;animationSpeed=$script:animationSpeed;tapCompression=$script:tapCompression}}
+function Save-Settings {Write-WidgetJson $settingsFile @{layoutVersion=2;right=$script:offsetRight;left=$script:offsetLeft;bottom=$script:offsetBottom;anchor=$script:anchor;side=$script:side;scale=$script:scale;collapsed=$script:collapsed;soundOn=$script:soundOn;soundVolume=$script:soundVolume;bubbleTapAdvance=$script:bubbleTapAdvance;hideMenu=$script:hideMenu;colorMode=$script:colorMode;colorChance=$script:colorChance;colorTextChance=$script:colorTextChance;colorPaused=$script:colorPaused;followHost=$script:followHost;desktopTopmost=$script:desktopTopmost;desktopLeft=$script:desktopLeft;desktopTop=$script:desktopTop;gravityEnabled=$script:gravityEnabled;mirrorCharacter=$script:mirrorCharacter;gravityStrength=$script:gravityStrength;elasticStrength=$script:elasticStrength;squishStrength=$script:squishStrength;animationSpeed=$script:animationSpeed;tapCompression=$script:tapCompression;energyConversion=$script:energyConversion}}
 function Get-WidgetPlacementFrame {
   if($script:followHost){return Get-WidgetVisibleFrame}
   $point=if($null-ne $script:desktopLeft -and $null-ne $script:desktopTop){[Drawing.Point]::new([int]$script:desktopLeft,[int]$script:desktopTop)}else{[Drawing.Point]::new(0,0)}

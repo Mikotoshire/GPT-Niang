@@ -6,7 +6,7 @@ Add-Type -Path $library
 Add-Type -Path (Join-Path $AppDir 'runtime/gravity-model.cs') -ReferencedAssemblies $library
 function Assert($value,$message){if(!$value){throw $message}}
 function Contact($elasticity){
-  $m=[GptGravityModel]::new();$m.SetTuning(1.6,$elasticity);$m.DropFrom(240)
+  $m=[GptGravityModel]::new();$m.SetTuning(1.6,$elasticity);$m.SetEnergyConversion([Math]::Min(85.0,40.96*$elasticity));$m.DropFrom(240)
   for($i=0;$i-lt 1000 -and !$m.FloorImpacts;$i++){$m.Advance(1.0/240,1000)}
   Assert ($m.FloorImpacts-eq 1) 'Fixture reaches floor'
   return $m

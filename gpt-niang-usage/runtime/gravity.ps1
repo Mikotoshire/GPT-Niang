@@ -33,6 +33,8 @@ function Initialize-WidgetGravity {
   if($null-eq $script:tapCompression){$script:tapCompression=1.0}
   if($null-eq $script:animationSpeed){$script:animationSpeed=1.0}
   if($null-eq $script:squishStrength){$script:squishStrength=1.0}
+  if($null-eq $script:energyConversion){$script:energyConversion=[Math]::Min(85.0,40.96*$script:elasticStrength)}
+  $script:gravity.SetEnergyConversion($script:energyConversion)
   $script:gravity.SetTuning($script:gravityStrength,$script:elasticStrength)
   $script:gravity.SetImpactSquish($script:squishStrength)
   $script:gravity.SetAnimationSpeed($script:animationSpeed)
@@ -116,6 +118,8 @@ function Begin-WidgetGravityDrag {
   $script:gravityTimer.Stop();$script:gravity.BeginDrag();Set-WidgetGravityPose
 }
 function Set-WidgetPhysicsTuning {
+  if($null-eq $script:energyConversion){$script:energyConversion=[Math]::Min(85.0,40.96*$script:elasticStrength)}
+  $script:gravity.SetEnergyConversion($script:energyConversion)
   $script:gravity.SetTuning($script:gravityStrength,$script:elasticStrength)
   $script:gravity.SetImpactSquish($script:squishStrength)
   $script:gravity.SetAnimationSpeed($script:animationSpeed)

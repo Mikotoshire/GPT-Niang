@@ -17,10 +17,20 @@ public sealed class GptGravityModel {
     public double StoredElasticEnergy { get; private set; }
     public double SpringCompression { get; private set; }
     public double SpringForce { get { return SpringStiffness * SpringCompression; } }
-    public double EnergyRetention { get { return Math.Min(0.85, Restitution * Restitution * Elasticity); } }
+    public const double DefaultEnergyConversion = Restitution * Restitution * 100;
+    public double EnergyConversion { get; private set; }
+    public double EnergyRetention { get { return EnergyConversion / 100; } }
+    public void SetEnergyConversion(double percent) {
+        EnergyConversion = double.IsNaN(percent) || double.IsInfinity(percent) ? DefaultEnergyConversion : Math.Max(0, Math.Min(85, percent));
+    }
+    double visualDepth;
+    void UpdateImpactDepth() {
+        double amount = ImpactSquish * SpringCompression;
+        visualDepth = 0.72 * amount / (0.30 + amount);
+    }
     bool bounceAfterCompression;
     void ClearSpring() {
-        ImpactEnergy = StoredElasticEnergy = SpringCompression = 0;
+        ImpactEnergy = StoredElasticEnergy = SpringCompression = visualDepth = 0;
         bounceAfterCompression = false;
     }
     public const double HorizontalRetention = 0.82;
@@ -52,7 +62,7 @@ public sealed class GptGravityModel {
     public double ImpactSquish { get; private set; }
     public void SetImpactSquish(double value) {
         ImpactSquish = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0, Math.Min(3, value));
-        UpdatePose();
+        UpdateImpactDepth(); UpdatePose();
     }
     public double EffectiveGravity { get { return Gravity * GravityMultiplier; } }
     public double TapApex { get { return TapHeight * Elasticity; } }
@@ -117,7 +127,7 @@ public sealed class GptGravityModel {
     double landingEntryX, landingEntryY, takeoffStretch;
     bool flying, multiple, landing;
 
-    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; TapCompression=1; Reset(); }
+    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; TapCompression=1; EnergyConversion=DefaultEnergyConversion; Reset(); }
     public void Reset() {
         CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
@@ -221,7 +231,7 @@ public sealed class GptGravityModel {
                     PeakHeight = Velocity * Velocity / (2 * EffectiveGravity); Rebounds++;
                     takeoffStretch = TakeoffStretchSeconds;
                 }
-                StoredElasticEnergy = SpringCompression = 0; bounceAfterCompression = false;
+                StoredElasticEnergy = SpringCompression = visualDepth = 0; bounceAfterCompression = false;
             }
         }
         else if (floorContact && previousVelocity <= 0) {
@@ -232,6 +242,7 @@ public sealed class GptGravityModel {
                 ImpactEnergy = 0.5 * impactSpeed * impactSpeed;
                 StoredElasticEnergy = ImpactEnergy * EnergyRetention;
                 SpringCompression = Math.Sqrt(2 * StoredElasticEnergy / SpringStiffness);
+                UpdateImpactDepth();
                 double incomingStretch = FlightStretch(previousVelocity);
                 landingEntryX = -incomingStretch * 0.5; landingEntryY = incomingStretch;
                 if (relax > 0) {
@@ -285,8 +296,7 @@ public sealed class GptGravityModel {
                     : 0.5 * (1 + Math.Cos(Math.PI * (phase - LandingCompressionShare) / (1 - LandingCompressionShare)));
                 // Cached spring compression drives both force and the visual envelope.
                 // Q is an appearance multiplier; visual saturation does not add energy.
-                double depth = Math.Min(0.72, ImpactSquish * SpringCompression);
-                double pulse = depth * envelope;
+                double pulse = visualDepth * envelope;
                 double entryFade = 1 - SmoothStep(phase / LandingCompressionShare);
                 ScaleX = 1 + landingEntryX * entryFade + pulse * (0.08 / 0.15);
                 ScaleY = 1 + landingEntryY * entryFade - pulse;

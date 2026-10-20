@@ -6,7 +6,7 @@ Add-Type -Path $library
 Add-Type -Path (Join-Path $AppDir 'runtime/gravity-model.cs') -ReferencedAssemblies $library
 function Assert($value,$message){if(!$value){throw $message}}
 function Measure-Impact($height,$elasticity,$squish=1){
-  $m=[GptGravityModel]::new();$m.SetTuning(1.6,$elasticity);$m.SetImpactSquish($squish);$m.DropFrom($height)
+  $m=[GptGravityModel]::new();$m.SetTuning(1.6,$elasticity);$m.SetEnergyConversion([Math]::Min(85.0,40.96*$elasticity));$m.SetImpactSquish($squish);$m.DropFrom($height)
   for($i=0;$i-lt 1000 -and !$m.FloorImpacts;$i++){$m.Advance(1.0/240,1000)}
   Assert ($m.FloorImpacts-eq 1) 'Fixture reaches first floor contact'
   $depth=0.0;$width=1.0
@@ -18,7 +18,7 @@ function Measure-Impact($height,$elasticity,$squish=1){
   return @{Depth=$depth;Width=$width;LaunchVelocity=$m.Velocity;Model=$m}
 }
 $low=Measure-Impact 240 .25;$normal=Measure-Impact 240 1;$high=Measure-Impact 240 3
-Assert ($normal.Depth-gt $low.Depth*1.5 -and $high.Depth-gt $normal.Depth*1.3) 'Same impact speed compresses more with higher elastic energy setting'
+Assert ($normal.Depth-gt $low.Depth+.1 -and $high.Depth-gt $normal.Depth+.05) 'Same impact speed compresses more with higher conversion setting'
 Assert ($normal.Depth-ge .36) 'Default high drop visibly compresses by at least 36 percent'
 $ceiling=Measure-Impact 900 1
 Assert ($ceiling.Depth-ge .44 -and $ceiling.Depth-gt $normal.Depth) 'Higher drop produces stronger visible compression'
