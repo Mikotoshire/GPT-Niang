@@ -1,5 +1,7 @@
 # Lightweight collision spring reservoir
 
+Historical stage evidence. Current independent conversion settings and smooth Q saturation supersede the earlier shared-control formula; see `energy-controls.tdd.md`. Legacy comparison fixtures explicitly set both controls to reproduce the original scenarios.
+
 AI-generated changes and documentation; insufficiently validated. No independent human review or full-project coverage claim.
 
 The user requested a simple shared conversion from collision speed to elastic energy, compression/force and upward velocity, avoiding expensive physical simulation. This replaces the preliminary visual-only elasticity adjustment in this development stage.

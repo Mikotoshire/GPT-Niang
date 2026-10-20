@@ -1,5 +1,7 @@
 # Elasticity-linked impact deformation
 
+Historical stage evidence. Current independent conversion settings and smooth Q saturation supersede the earlier shared-control formula; see `energy-controls.tdd.md`. Legacy comparison fixtures explicitly set both controls to reproduce the original scenarios.
+
 AI-generated maintenance and documentation; insufficiently validated. No independent human review or whole-project coverage measurement.
 
 Journey: high drops must visibly squash more, and the existing elastic energy slider must increase landing deformation at the same impact speed. Retain the separate Q multiplier, smooth compression/recovery, neutral takeoff and bounded physical rebound.
