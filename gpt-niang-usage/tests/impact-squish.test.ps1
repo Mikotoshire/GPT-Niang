@@ -1,0 +1,55 @@
+param([string]$AppDir=(Split-Path $PSScriptRoot -Parent))
+# AI-generated maintenance tests; insufficiently validated. See AI-NOTICE.md.
+$ErrorActionPreference='Stop'
+$library=Join-Path $AppDir 'runtime/vendor/aether/Aether.Physics2D.dll'
+Add-Type -Path $library
+Add-Type -Path (Join-Path $AppDir 'runtime/gravity-model.cs') -ReferencedAssemblies $library
+function Assert($value,$message){if(!$value){throw $message}}
+$models=@()
+foreach($strength in @(0,1,3)){
+  $m=[GptGravityModel]::new();$m.SetImpactSquish($strength);$m.DropFrom(12);$models+=,$m
+}
+$maxDefault=0;$maxStrong=0
+for($i=0;$i-lt 300;$i++){
+  foreach($m in $models){$m.Advance(1.0/240,900,1000)}
+  Assert ($models[0].Height-eq $models[2].Height -and $models[0].Velocity-eq $models[2].Velocity -and $models[0].HorizontalVelocity-eq $models[2].HorizontalVelocity) 'Squish must not change physics'
+  if($models[0].FloorImpacts-gt 0){
+    Assert ([Math]::Abs($models[0].ScaleX-1)-lt 1e-9 -and [Math]::Abs($models[0].ScaleY-1)-lt 1e-9) 'Zero disables only the landing pulse'
+    $maxDefault=[Math]::Max($maxDefault,1-$models[1].ScaleY)
+    $maxStrong=[Math]::Max($maxStrong,1-$models[2].ScaleY)
+  }
+}
+Assert ($maxDefault-gt 0.14 -and [Math]::Abs($maxStrong-3*$maxDefault)-lt 1e-8) 'Slider must scale landing compression'
+foreach($m in $models){Assert ($m.ScaleX-eq 1 -and $m.ScaleY-eq 1 -and !$m.Active) 'Landing pulse must fully recover'}
+$m.SetImpactSquish(2.25);$m.Reset();Assert ($m.ImpactSquish-eq 2.25) 'Reset retains the setting'
+foreach($invalid in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetImpactSquish($invalid);Assert ($m.ImpactSquish-eq 1) 'Nonfinite tuning uses default'}
+$m.SetImpactSquish(-10);Assert ($m.ImpactSquish-eq 0) 'Lower bound'
+$m.SetImpactSquish(99);Assert ($m.ImpactSquish-eq 3) 'Upper bound'
+$models=@([GptGravityModel]::new(),[GptGravityModel]::new());$models[0].SetImpactSquish(0);$models[1].SetImpactSquish(3)
+foreach($m in $models){$m.BeginPress();$m.Advance(0.1,900)}
+Assert ($models[0].ScaleY-eq $models[1].ScaleY -and $models[0].ScaleX-eq $models[1].ScaleX) 'Press compression remains independent'
+foreach($m in $models){$m.FlingFrom(250,500,-100)}
+for($i=0;$i-lt 1000;$i++){
+  foreach($m in $models){$m.Advance(1.0/240,900,1000)}
+  Assert ($models[0].Height-eq $models[1].Height -and $models[0].HorizontalPosition-eq $models[1].HorizontalPosition -and $models[0].Rebounds-eq $models[1].Rebounds) 'Bounce height, inertia and collision count remain independent'
+}
+function Import-TestFunction($file,$name){
+  $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText($file),[ref]$tokens,[ref]$errors)
+  Assert (!$errors.Count) 'Source syntax'
+  $definition=$ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq $name},$true)
+  return $definition.Extent.Text
+}
+. ([scriptblock]::Create((Import-TestFunction (Join-Path $AppDir 'runtime/gravity.ps1') 'Set-WidgetPhysicsTuning')))
+. ([scriptblock]::Create((Import-TestFunction (Join-Path $AppDir 'widget.ps1') 'Save-Settings')))
+$temporary=Join-Path ([IO.Path]::GetTempPath()) ('squish-setting-'+[Guid]::NewGuid().ToString('N'))
+$script:settingsFile=Join-Path $temporary 'settings.json'
+function Write-WidgetJson($file,$data){[IO.Directory]::CreateDirectory($temporary)|Out-Null;[IO.File]::WriteAllText($file,($data|ConvertTo-Json))}
+try{
+  $script:gravity=[GptGravityModel]::new();$script:gravityStrength=1.6;$script:elasticStrength=1;$script:squishStrength=2.25
+  Set-WidgetPhysicsTuning
+  $saved=Get-Content -LiteralPath $script:settingsFile -Raw|ConvertFrom-Json
+  Assert ($script:gravity.ImpactSquish-eq 2.25 -and $saved.squishStrength-eq 2.25) 'Production bridge applies and persists slider'
+  $restored=[GptGravityModel]::new();$restored.SetImpactSquish($saved.squishStrength)
+  Assert ($restored.ImpactSquish-eq 2.25) 'Preference JSON can restore the same value'
+}finally{if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary -Recurse -Force}}
+'PASS: landing amplitude, zero/default/max, recovery, validation, physics independence and preference persistence'
