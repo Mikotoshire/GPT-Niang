@@ -34,3 +34,41 @@ foreach($q in @(1,2,3)){
 }
 Assert ($depths[1]-gt $depths[0]+.02 -and $depths[2]-gt $depths[1]+.01 -and $depths[2]-lt .72) 'Q keeps a visible response at high energy without a hard plateau'
 'PASS: independent conversion slider, zero/max/default, launch separation, retention and responsive Q range'
+function Import-TestFunction($file,$name){
+  $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText($file),[ref]$tokens,[ref]$errors)
+  Assert (!$errors.Count) 'Production source parses'
+  return $ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq $name},$true).Extent.Text
+}
+$widget=Join-Path $AppDir 'widget.ps1'
+foreach($name in @('Get-WidgetEnergyConversionPreference','Save-Settings')){. ([scriptblock]::Create((Import-TestFunction $widget $name)))}
+. ([scriptblock]::Create((Import-TestFunction (Join-Path $AppDir 'runtime/gravity.ps1') 'Set-WidgetPhysicsTuning')))
+foreach($legacy in @(.25,1,1.5,3)){
+  Assert ([Math]::Abs((Get-WidgetEnergyConversionPreference @{} $legacy)-[Math]::Min(85,40.96*$legacy))-lt 1e-8) 'Missing conversion setting migrates old retention exactly'
+}
+foreach($value in @(0,40.96,65,85)){
+  Assert ((Get-WidgetEnergyConversionPreference @{energyConversion=$value} 3)-eq $value) 'Explicit efficiency including zero overrides migration'
+}
+foreach($value in @(-1,86,'broken',[double]::NaN,[double]::PositiveInfinity)){
+  Assert ([Math]::Abs((Get-WidgetEnergyConversionPreference @{energyConversion=$value} 1.5)-61.44)-lt 1e-8) 'Invalid preference falls back to safe legacy conversion'
+}
+$tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText($widget),[ref]$tokens,[ref]$errors)
+Assert ($null-ne $ast.Find({param($n)$n-is [Management.Automation.Language.AssignmentStatementAst] -and $n.Extent.Text-eq '$script:energyConversion=Get-WidgetEnergyConversionPreference $settings $script:elasticStrength'},$true)) 'Startup calls the tested migration'
+$settings=@{gravityStrength='broken';elasticStrength='broken';energyConversion=65};$script:gravityStrength=1.6;$script:elasticStrength=1
+foreach($name in @('gravityStrength','elasticStrength')){
+  $node=$ast.Find({param($n)$n-is [Management.Automation.Language.IfStatementAst] -and $n.Extent.Text.StartsWith('if($null-ne $settings.'+$name+')')},$true)
+  . ([scriptblock]::Create($node.Extent.Text))
+}
+Assert ($script:gravityStrength-eq 1.6 -and $script:elasticStrength-eq 1 -and (Get-WidgetEnergyConversionPreference $settings $script:elasticStrength)-eq 65) 'Invalid old physics fields cannot prevent new settings loading'
+$temporary=Join-Path ([IO.Path]::GetTempPath()) ('energy-controls-'+[Guid]::NewGuid().ToString('N'))
+$script:settingsFile=Join-Path $temporary 'settings.json'
+function Write-WidgetJson($file,$data){[IO.Directory]::CreateDirectory($temporary)|Out-Null;[IO.File]::WriteAllText($file,($data|ConvertTo-Json))}
+try{
+  $script:gravity=[GptGravityModel]::new();$script:energyConversion=65;$script:elasticStrength=1.5;$script:squishStrength=1;$script:animationSpeed=1;$script:tapCompression=1
+  Set-WidgetPhysicsTuning
+  $saved=Get-Content -LiteralPath $script:settingsFile -Raw|ConvertFrom-Json
+  Assert ($script:gravity.EnergyConversion-eq 65 -and $saved.energyConversion-eq 65) 'Production bridge applies and saves conversion'
+  $script:elasticStrength=3;Set-WidgetPhysicsTuning
+  Assert ($script:gravity.EnergyConversion-eq 65 -and $script:gravity.Elasticity-eq 3) 'Changing launch slider leaves collision efficiency unchanged'
+  Assert ((Get-WidgetEnergyConversionPreference $saved 3)-eq 65) 'Saved conversion restores independently'
+}finally{if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary -Recurse -Force}}
+'PASS: legacy migration, explicit zero, invalid settings isolation and production save/load'
