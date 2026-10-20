@@ -37,7 +37,7 @@ function Initialize-WidgetGravity {
   if($null-eq $script:reboundStrength){$script:reboundStrength=$script:energyConversion/0.85}
   $script:reboundStrength=[int]([Math]::Min(100.0,[Math]::Max(0.0,[Math]::Round($script:reboundStrength/5,0,[MidpointRounding]::AwayFromZero)*5)))
   $script:energyConversion=0.85*$script:reboundStrength
-  if($null-eq $script:compressionCurve){$script:compressionCurve=1.6}
+  if($null-eq $script:compressionCurve){$script:compressionCurve=1.5}
   $script:gravity.SetCompressionCurve($script:compressionCurve)
   $script:gravity.SetEnergyConversion($script:energyConversion)
   $script:gravity.SetTuning($script:gravityStrength,$script:elasticStrength)
@@ -127,7 +127,7 @@ function Set-WidgetPhysicsTuning {
   if($null-eq $script:reboundStrength){$script:reboundStrength=$script:energyConversion/0.85}
   $script:reboundStrength=[int]([Math]::Min(100.0,[Math]::Max(0.0,[Math]::Round($script:reboundStrength/5,0,[MidpointRounding]::AwayFromZero)*5)))
   $script:energyConversion=0.85*$script:reboundStrength
-  if($null-eq $script:compressionCurve){$script:compressionCurve=1.6}
+  if($null-eq $script:compressionCurve){$script:compressionCurve=1.5}
   $script:gravity.SetCompressionCurve($script:compressionCurve)
   $script:gravity.SetEnergyConversion($script:energyConversion)
   $script:gravity.SetTuning($script:gravityStrength,$script:elasticStrength)

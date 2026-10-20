@@ -49,7 +49,7 @@ for($i=0;$i-lt 1000 -and !$m.FloorImpacts;$i++){$m.Advance(1.0/240,1000)}
 $m.Advance(.02,1000);$y=$m.ScaleY;$m.SetCompressionCurve(3);$m.Advance(0,1000)
 Assert ($m.ScaleY-eq $y) 'Mid-contact adjustment does not jump the active pose'
 $m.Reset();Assert ($m.CompressionCurve-eq 3) 'Reset keeps curve setting'
-foreach($invalid in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetCompressionCurve($invalid);Assert ($m.CompressionCurve-eq 1.6) 'Invalid values use the default'}
+foreach($invalid in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetCompressionCurve($invalid);Assert ($m.CompressionCurve-eq 1.5) 'Invalid values use the default'}
 $m.SetCompressionCurve(0);Assert ($m.CompressionCurve-eq 1.5) 'Lower bound preserves monotonic deceleration'
 $m.SetCompressionCurve(10);Assert ($m.CompressionCurve-eq 3) 'Upper bound preserves monotonic deceleration'
 'PASS: curve shape, decreasing vertical speed, endpoints, braking, pose-only tuning, no mid-contact jump and validation'
@@ -65,9 +65,9 @@ $ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText(
 $load=$ast.Find({param($n)$n-is [Management.Automation.Language.IfStatementAst] -and $n.Extent.Text.StartsWith('if($null-ne $settings.compressionCurve)')},$true)
 Assert ($null-ne $load) 'Startup loads saved compression curve'
 foreach($value in @($null,0,1.5,1.6,2.25,3,4,'broken',[double]::NaN,[double]::PositiveInfinity)){
-  $settings=@{compressionCurve=$value};$script:compressionCurve=1.6
+  $settings=@{compressionCurve=$value};$script:compressionCurve=1.5
   . ([scriptblock]::Create($load.Extent.Text))
-  $expected=if($null-ne $value -and $value-is [ValueType] -and $value-ge 1.5 -and $value-le 3){[double]$value}else{1.6}
+  $expected=if($null-ne $value -and $value-is [ValueType] -and $value-ge 1.5 -and $value-le 3){[double]$value}else{1.5}
   Assert ($script:compressionCurve-eq $expected) 'Old and invalid curve preferences retain default'
 }
 $temporary=Join-Path ([IO.Path]::GetTempPath()) ('compression-curve-'+[Guid]::NewGuid().ToString('N'))
@@ -78,7 +78,7 @@ try{
   Set-WidgetPhysicsTuning
   $saved=Get-Content -LiteralPath $script:settingsFile -Raw|ConvertFrom-Json
   Assert ($script:gravity.CompressionCurve-eq 2.25 -and $saved.compressionCurve-eq 2.25) 'Production tuning bridge applies and persists curve'
-  $settings=$saved;$script:compressionCurve=1.6
+  $settings=$saved;$script:compressionCurve=1.5
   . ([scriptblock]::Create($load.Extent.Text))
   Assert ($script:compressionCurve-eq 2.25) 'Production startup loader restores the same curve'
 }finally{if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary -Recurse -Force}}

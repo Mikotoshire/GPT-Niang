@@ -126,7 +126,7 @@ function Get-WidgetReboundStrengthPreference($settings,[double]$legacyStrength=1
   $energy=Get-WidgetEnergyConversionPreference $settings $legacyStrength
   return [int]([Math]::Round($energy/0.85/5,0,[MidpointRounding]::AwayFromZero)*5)
 }
-$script:gravityEnabled=$false;$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0;$script:energyConversion=42.5;$script:reboundStrength=50;$script:compressionCurve=1.6
+$script:gravityEnabled=$false;$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0;$script:energyConversion=42.5;$script:reboundStrength=50;$script:compressionCurve=1.5
 $script:hostReadiness=New-WidgetReadinessState
 $script:bubbleMode='quota';$script:sceneStartedAt=0;$script:sceneDeadline=0;$script:sceneTimer=$null;$script:sceneRevision=0
 $script:resetTimeMode='countdown';$script:resetPhaseTimer=$null

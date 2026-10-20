@@ -58,7 +58,7 @@ public sealed class GptGravityModel {
     public double CompressionCurve { get; private set; }
     double landingCurve;
     public void SetCompressionCurve(double value) {
-        CompressionCurve = double.IsNaN(value) || double.IsInfinity(value) ? 1.6 : Math.Max(1.5, Math.Min(3, value));
+        CompressionCurve = double.IsNaN(value) || double.IsInfinity(value) ? 1.5 : Math.Max(1.5, Math.Min(3, value));
     }
     public double GetCompressionProgress(double time) { return CompressionProgress(time, CompressionCurve); }
     static double CompressionProgress(double t, double slope) {
@@ -140,7 +140,7 @@ public sealed class GptGravityModel {
     double landingEntryX, landingEntryY, takeoffStretch;
     bool flying, multiple, landing;
 
-    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; TapCompression=1; EnergyConversion=DefaultEnergyConversion; CompressionCurve=1.6; Reset(); }
+    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; TapCompression=1; EnergyConversion=DefaultEnergyConversion; CompressionCurve=1.5; Reset(); }
     public void Reset() {
         CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;

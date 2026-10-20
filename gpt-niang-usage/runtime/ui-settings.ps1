@@ -149,6 +149,11 @@ function Initialize-WidgetSettingsMenu {
   } -ReturnItem
   $script:settingsMenuUi.Gravity=Add-SettingsAction '重力模式' {param($sender,$event)Set-WidgetGravityMode ([bool]$sender.IsChecked)} -Description '单击轻跳，长按蓄力，拖动甩出带惯性' -Checkable -ReturnItem
   $script:settingsMenuUi.Physics=Add-SettingsSubmenu '重力与弹性' {
+    $script:settingsMenuUi.NaturalElasticity=Add-SettingsAction '应用自然弹性' {
+      $script:compressionCurve=1.5;$script:reboundStrength=75;$script:energyConversion=63.75
+      $script:squishStrength=1.0;$script:animationSpeed=1.0
+      Set-WidgetPhysicsTuning;Update-WidgetSettingsMenu
+    } -Description '曲线 1.5、反弹 75%、Q弹 1×、动画 1×；以实球运动为参考的视觉预设' -ReturnItem
     $g=New-SettingsSlider '重力强度' 0.5 4 0.1
     $script:settingsMenuUi.GravityStrength=$g.Slider;$script:settingsMenuUi.GravityStrengthText=$g.Value
     $g.Slider.Value=$script:gravityStrength
@@ -187,7 +192,7 @@ function Initialize-WidgetSettingsMenu {
     Add-SettingsPanel $a.Panel
     $script:settingsMenuUi.CompressionCurveMenu=Add-SettingsSubmenu '压缩曲线' {
       $r=New-SettingsSlider '压缩减速强度' 1.5 3 0.05
-      $r.Panel.ToolTip='越大，垂直压缩初速越快、越早接近最扁并缓慢收住；末端速度为零。只调整压缩段，下次触底生效；基础时长随储能变化，再由动画速度统一调节'
+      $r.Panel.ToolTip='1.5 更接近弹性球的正弦压缩；越大，垂直压缩初速越快、越早接近最扁并缓慢收住；末端速度为零。只调整压缩段，下次触底生效；基础时长随储能变化，再由动画速度统一调节'
       $script:settingsMenuUi.CompressionCurve=$r.Slider;$script:settingsMenuUi.CompressionCurveText=$r.Value
       $r.Slider.Value=$script:compressionCurve
       $canvas=New-Object Windows.Controls.Canvas;$canvas.Width=200;$canvas.Height=76
