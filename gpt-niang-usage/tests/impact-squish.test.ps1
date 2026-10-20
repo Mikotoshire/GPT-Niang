@@ -14,9 +14,9 @@ for($i=0;$i-lt 300;$i++){
   foreach($m in $models){$m.Advance(1.0/240,900,1000)}
   Assert ($models[0].Height-eq $models[2].Height -and $models[0].Velocity-eq $models[2].Velocity -and $models[0].HorizontalVelocity-eq $models[2].HorizontalVelocity) 'Squish must not change physics'
   if($models[0].FloorImpacts-gt 0){
-    Assert ([Math]::Abs($models[0].ScaleX-1)-lt 1e-9 -and [Math]::Abs($models[0].ScaleY-1)-lt 1e-9) 'Zero disables only the landing pulse'
-    $maxDefault=[Math]::Max($maxDefault,1-$models[1].ScaleY)
-    $maxStrong=[Math]::Max($maxStrong,1-$models[2].ScaleY)
+    Assert ($models[0].ScaleX-le 1.000000001 -and $models[0].ScaleY-ge 0.999999999) 'Zero adds no landing squash while incoming stretch settles'
+    $maxDefault=[Math]::Max($maxDefault,$models[0].ScaleY-$models[1].ScaleY)
+    $maxStrong=[Math]::Max($maxStrong,$models[0].ScaleY-$models[2].ScaleY)
   }
 }
 Assert ($maxDefault-gt 0.04 -and [Math]::Abs($maxStrong-3*$maxDefault)-lt 1e-8) 'Slider must scale speed-linked landing compression'

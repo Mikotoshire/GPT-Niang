@@ -22,6 +22,7 @@ $minimum=1.0;$peak=0
 for($i=0;$i-lt $samples.Count;$i++){if($samples[$i]-lt $minimum){$minimum=$samples[$i];$peak=$i}}
 $recovery=$samples.Count-1-$peak
 Assert ($peak-gt 0 -and $recovery-ge $peak*1.3) 'Recovery must last appreciably longer than compression'
+Assert ([Math]::Abs($samples[2]-$samples[1])-gt [Math]::Abs($samples[$peak]-$samples[$peak-1])*3) 'Compression must decelerate near maximum squash'
 Assert ([Math]::Abs($samples[$samples.Count-1]-1)-lt 1e-8) 'Takeoff must begin at neutral shape, without a stretch jump'
 $early=[Math]::Abs($samples[$peak+2]-$samples[$peak+1])
 $middleIndex=$peak+[int][Math]::Floor($recovery/2)
@@ -33,4 +34,11 @@ for($i=$peak+1;$i-lt $samples.Count;$i++){$maximumStep=[Math]::Max($maximumStep,
 Assert ($maximumStep-lt 0.03) 'Recovery must not contain a single-frame shape jump'
 $m.Advance(1.0/240,900)
 Assert ([Math]::Abs($m.ScaleY-1)-lt 0.005) 'Airborne stretch must ease in after recovery'
+$m=[GptGravityModel]::new();$m.DropFrom(12)
+$sawCompression=$false
+for($i=0;$i-lt 500 -and $m.Active;$i++){
+  $m.Advance(1.0/240,900)
+  if($m.ScaleY-lt 0.98){$sawCompression=$true}
+}
+Assert ($sawCompression -and !$m.Active -and $m.ScaleY-eq 1 -and $m.Velocity-eq 0 -and $m.Rebounds-eq 0) 'Final nonbouncing landing must recover smoothly to rest'
 'PASS: continuous contact, longer recovery, nonuniform recovery speed, neutral takeoff and eased airborne stretch'

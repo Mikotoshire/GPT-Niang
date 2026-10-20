@@ -90,7 +90,9 @@ public sealed class GptGravityModel {
         bounds.CreateEdge(new Vector2(-1,top+0.25f),new Vector2(right+1,top+0.25f));
         ceilingLimit=ceiling; widthLimit=width;
     }
+    const double LandingCompressionShare = 0.4142135623730951, TakeoffStretchSeconds = 0.08;
     double age, held, impact, impactSpeed, impactDuration, pendingBounce, relax, releasedX, releasedY;
+    double landingEntryX, landingEntryY, takeoffStretch;
     bool flying, multiple, landing;
 
     public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; Reset(); }
@@ -98,6 +100,7 @@ public sealed class GptGravityModel {
         CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
         impactSpeed = impactDuration = pendingBounce = 0; landing = false;
+        landingEntryX = landingEntryY = takeoffStretch = 0;
         ScaleX = ScaleY = 1; Rebounds = 0;
         IsPressed = ReleasePending = Dragging = flying = multiple = false;
     }
@@ -105,7 +108,7 @@ public sealed class GptGravityModel {
         IsPressed = true; ReleasePending = Dragging = flying = multiple = false;
         body.LinearVelocity = Vector2.Zero;
         Velocity = age = held = Charge = impact = relax = 0; Rebounds = 0;
-        pendingBounce = 0; landing = false;
+        pendingBounce = takeoffStretch = 0; landing = false;
         UpdatePose();
     }
     public void ReleasePress() {
@@ -117,7 +120,7 @@ public sealed class GptGravityModel {
         IsPressed = ReleasePending = flying = false; Dragging = true;
         body.LinearVelocity = Vector2.Zero;
         Velocity = Charge = held = age = impact = relax = 0; ScaleX = ScaleY = 1;
-        pendingBounce = 0; landing = false;
+        pendingBounce = takeoffStretch = 0; landing = false;
     }
     public void DragTo(double height) { Height = Math.Max(0, height); }
     public void DropFrom(double height) {
@@ -167,6 +170,7 @@ public sealed class GptGravityModel {
             remaining -= dt;
             impact = Math.Max(0, impact - dt);
             relax = Math.Max(0, relax - dt);
+            takeoffStretch = Math.Max(0, takeoffStretch - dt);
             if (IsPressed || ReleasePending) {
                 age += dt;
                 if (IsPressed) held += dt;
@@ -194,6 +198,7 @@ public sealed class GptGravityModel {
                     Velocity = Math.Min(pendingBounce, Math.Sqrt(2 * EffectiveGravity * ceiling));
                     body.LinearVelocity = new Vector2(body.LinearVelocity.X, (float)(Velocity / Units));
                     PeakHeight = Velocity * Velocity / (2 * EffectiveGravity); Rebounds++;
+                    takeoffStretch = TakeoffStretchSeconds;
                 }
                 pendingBounce = 0;
             }
@@ -203,8 +208,16 @@ public sealed class GptGravityModel {
                 body.LinearVelocity = new Vector2(body.LinearVelocity.X * (float)HorizontalRetention,body.LinearVelocity.Y);
                 FloorImpacts++;
                 impactSpeed = Math.Max(0, -previousVelocity);
-                impactDuration = 0.10 + 0.06 * Math.Min(1, impactSpeed / 1200);
+                double incomingStretch = FlightStretch(previousVelocity);
+                landingEntryX = -incomingStretch * 0.5; landingEntryY = incomingStretch;
+                if (relax > 0) {
+                    double blend = SmoothStep(relax / 0.1);
+                    landingEntryX += (releasedX - 1 - landingEntryX) * blend;
+                    landingEntryY += (releasedY - 1 - landingEntryY) * blend;
+                }
+                impactDuration = 0.18 + 0.08 * Math.Min(1, impactSpeed / 1200);
                 impact = impactDuration; relax = 0;
+                takeoffStretch = 0;
                 pendingBounce = stopLanding ? 0 : Math.Max(0, Velocity);
                 landing = true;
                 HoldOnFloor();
@@ -222,6 +235,14 @@ public sealed class GptGravityModel {
         body.Position = new Vector2(body.Position.X, 0);
         body.LinearVelocity = new Vector2(body.LinearVelocity.X, 0);
     }
+    static double SmoothStep(double value) {
+        value = Math.Max(0, Math.Min(1, value));
+        return value * value * (3 - 2 * value);
+    }
+    double FlightStretch(double velocity) {
+        double stretch = Math.Min(0.06, Math.Abs(velocity) / 14000);
+        return takeoffStretch > 0 ? stretch * SmoothStep(1 - takeoffStretch / TakeoffStretchSeconds) : stretch;
+    }
     void UpdatePose() {
         if (IsPressed || ReleasePending) {
             double t = Math.Min(1, age / CompressionSeconds);
@@ -229,12 +250,21 @@ public sealed class GptGravityModel {
             ScaleY = 1 - 0.12 * ease - 0.4 * Charge;
             ScaleX = 1 + 0.05 * ease + 0.4 * Charge;
         } else {
-            double stretch = flying ? Math.Min(0.06, Math.Abs(Velocity) / 14000) : 0;
-            double speedFactor = 2 * impactSpeed / (impactSpeed + 600);
-            double depth = Math.Min(0.55, 0.15 * ImpactSquish * speedFactor);
-            double pulse = impact > 0 ? depth * Math.Sin(Math.PI * (1 - impact / impactDuration)) : 0;
-            ScaleX = 1 - stretch * 0.5 + pulse * (0.08 / 0.15);
-            ScaleY = 1 + stretch - pulse;
+            double stretch = flying ? FlightStretch(Velocity) : 0;
+            ScaleX = 1 - stretch * 0.5; ScaleY = 1 + stretch;
+            if (landing) {
+                double phase = Math.Max(0, Math.Min(1, 1 - impact / impactDuration));
+                // Compression decelerates into the peak. Longer recovery starts
+                // from rest, accelerates, then brakes before reaching neutral.
+                double envelope = phase <= LandingCompressionShare
+                    ? Math.Sin(0.5 * Math.PI * phase / LandingCompressionShare)
+                    : 0.5 * (1 + Math.Cos(Math.PI * (phase - LandingCompressionShare) / (1 - LandingCompressionShare)));
+                double depth = Math.Min(0.55, 0.15 * ImpactSquish * 2 * impactSpeed / (impactSpeed + 600));
+                double pulse = depth * envelope;
+                double entryFade = 1 - SmoothStep(phase / LandingCompressionShare);
+                ScaleX = 1 + landingEntryX * entryFade + pulse * (0.08 / 0.15);
+                ScaleY = 1 + landingEntryY * entryFade - pulse;
+            }
             if (relax > 0) {
                 double blend = relax / 0.1;
                 blend = blend * blend * (3 - 2 * blend);
