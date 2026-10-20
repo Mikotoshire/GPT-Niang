@@ -55,7 +55,7 @@ foreach($value in @(-1,86,'broken',[double]::NaN,[double]::PositiveInfinity)){
   Assert ([Math]::Abs((Get-WidgetEnergyConversionPreference @{energyConversion=$value} 1.5)-61.44)-lt 1e-8) 'Invalid preference falls back to safe legacy conversion'
 }
 $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText($widget),[ref]$tokens,[ref]$errors)
-Assert ($null-ne $ast.Find({param($n)$n-is [Management.Automation.Language.AssignmentStatementAst] -and $n.Extent.Text-eq '$script:energyConversion=Get-WidgetEnergyConversionPreference $settings $script:elasticStrength'},$true)) 'Startup calls the tested migration'
+Assert ($null-ne $ast.Find({param($n)$n-is [Management.Automation.Language.AssignmentStatementAst] -and $n.Extent.Text-eq '$script:reboundStrength=Get-WidgetReboundStrengthPreference $settings $script:elasticStrength'},$true)) 'Startup calls the tested migration'
 $settings=@{gravityStrength='broken';elasticStrength='broken';energyConversion=65};$script:gravityStrength=1.6;$script:elasticStrength=1
 foreach($name in @('gravityStrength','elasticStrength')){
   $node=$ast.Find({param($n)$n-is [Management.Automation.Language.IfStatementAst] -and $n.Extent.Text.StartsWith('if($null-ne $settings.'+$name+')')},$true)
@@ -66,12 +66,12 @@ $temporary=Join-Path ([IO.Path]::GetTempPath()) ('energy-controls-'+[Guid]::NewG
 $script:settingsFile=Join-Path $temporary 'settings.json'
 function Write-WidgetJson($file,$data){[IO.Directory]::CreateDirectory($temporary)|Out-Null;[IO.File]::WriteAllText($file,($data|ConvertTo-Json))}
 try{
-  $script:gravity=[GptGravityModel]::new();$script:energyConversion=65;$script:elasticStrength=1.5;$script:squishStrength=1;$script:animationSpeed=1;$script:tapCompression=1
+  $script:gravity=[GptGravityModel]::new();$script:energyConversion=63.75;$script:reboundStrength=75;$script:elasticStrength=1.5;$script:squishStrength=1;$script:animationSpeed=1;$script:tapCompression=1
   Set-WidgetPhysicsTuning
   $saved=Get-Content -LiteralPath $script:settingsFile -Raw|ConvertFrom-Json
-  Assert ($script:gravity.EnergyConversion-eq 65 -and $saved.energyConversion-eq 65) 'Production bridge applies and saves conversion'
+  Assert ($script:gravity.EnergyConversion-eq 63.75 -and $saved.energyConversion-eq 63.75) 'Production bridge applies and saves conversion'
   $script:elasticStrength=3;Set-WidgetPhysicsTuning
-  Assert ($script:gravity.EnergyConversion-eq 65 -and $script:gravity.Elasticity-eq 3) 'Changing launch slider leaves collision efficiency unchanged'
-  Assert ((Get-WidgetEnergyConversionPreference $saved 3)-eq 65) 'Saved conversion restores independently'
+  Assert ($script:gravity.EnergyConversion-eq 63.75 -and $script:gravity.Elasticity-eq 3) 'Changing launch slider leaves collision efficiency unchanged'
+  Assert ((Get-WidgetEnergyConversionPreference $saved 3)-eq 63.75) 'Saved conversion restores independently'
 }finally{if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary -Recurse -Force}}
 'PASS: legacy migration, explicit zero, invalid settings isolation and production save/load'

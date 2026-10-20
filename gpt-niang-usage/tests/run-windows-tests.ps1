@@ -11,6 +11,8 @@ if($WidgetOnly){
   return
 }
 $powerShell=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+& $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'rebound-steps.test.ps1')
+if($LASTEXITCODE-ne 0){throw 'Rebound steps regression failed.'}
 & $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'compression-curve.test.ps1')
 if($LASTEXITCODE-ne 0){throw 'Compression curve regression failed.'}
 & $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'energy-controls.test.ps1')

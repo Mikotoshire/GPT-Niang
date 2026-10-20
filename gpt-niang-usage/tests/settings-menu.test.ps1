@@ -28,7 +28,7 @@ Initialize-WidgetUpdater
 $script:window=New-Object Windows.Window
 $script:collapsed=$true;$script:bubbleMode='quota';$script:followHost=$true;$script:desktopTopmost=$true
 $script:scale=1.0;$script:soundOn=$true;$script:soundVolume=0.9;$script:bubbleTapAdvance=$false;$script:hideMenu=$false
-$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0;$script:energyConversion=40.96;$script:compressionCurve=1.6
+$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0;$script:energyConversion=42.5;$script:reboundStrength=50;$script:compressionCurve=1.6
 $script:colorMode='mixed';$script:colorChance=0.5;$script:colorTextChance=3;$script:colorPaused=$false
 try{
   Initialize-WidgetSettingsMenu
@@ -71,10 +71,22 @@ try{
   Assert-Equal $script:squishStrength 2.25 'Tap compression leaves landing squish unchanged'
   Assert-Equal $script:settingsMenuUi.EnergyConversion.Minimum 0 'Conversion slider allows zero'
   Assert-Equal $script:settingsMenuUi.ElasticStrength.Parent.Children[0].Children[0].Text '起跳能量' 'Old shared slider has an explicit launch-only label'
-  Assert-Equal $script:settingsMenuUi.EnergyConversion.IsSnapToTickEnabled $false 'Migration preserves fractional efficiency'
-  Assert-Equal $script:settingsMenuUi.EnergyConversion.Maximum 85 'Conversion slider retains losses'
+  Assert-Equal $script:settingsMenuUi.EnergyConversion.IsSnapToTickEnabled $true 'Rebound thumb snaps to integer levels'
+  Assert-Equal $script:settingsMenuUi.EnergyConversion.Maximum 100 'Rebound scale reaches 100 percent'
+  Assert-Equal (($script:settingsMenuUi.EnergyConversion.Maximum-$script:settingsMenuUi.EnergyConversion.Minimum)/$script:settingsMenuUi.EnergyConversion.TickFrequency) 20 'Twenty equal intervals including a zero endpoint'
+  Assert-Equal $script:settingsMenuUi.EnergyConversion.TickFrequency 5 'Five-percent step'
+  Assert-Equal $script:settingsMenuUi.EnergyConversion.SmallChange 5 'Keyboard also uses five-percent steps'
+  Assert-Equal $script:settingsMenuUi.EnergyConversion.Parent.Children[0].Children[0].Text '反弹程度' 'Renamed visible caption'
+  $script:settingsMenuUi.EnergyConversion.Value=63
+  Assert-Equal $script:settingsMenuUi.EnergyConversion.Value 65 'Intermediate pointer values are snapped too'
+  for($i=0;$i-le 20;$i++){
+    $step=$i*5;$script:settingsMenuUi.EnergyConversion.Value=$step
+    Assert-Equal $script:reboundStrength $step 'Every five-percent level is reachable'
+    Assert-Equal $script:settingsMenuUi.EnergyConversionText.Text ($step.ToString()+'%') 'Each level has an integer label'
+  }
   $script:settingsMenuUi.EnergyConversion.Value=65
-  Assert-Equal $script:energyConversion 65 'Conversion updates preference'
+  Assert-Equal $script:reboundStrength 65 'Rebound updates integer preference'
+  Assert-Equal $script:energyConversion 55.25 'Rebound maps to retained energy'
   Assert-Equal $script:settingsMenuUi.EnergyConversionText.Text '65%' 'Conversion displays a percentage'
   Assert-Equal $script:elasticStrength 1.5 'Conversion leaves manual launch energy unchanged'
   Assert-Equal $script:settingsMenuUi.CompressionCurve.Minimum 1.5 'Curve minimum preserves deceleration'
@@ -85,7 +97,7 @@ try{
   Assert-Equal $script:compressionCurve 3 'Curve slider updates preference'
   Assert-Equal $script:settingsMenuUi.CompressionCurveText.Text '3.00' 'Curve label updates'
   Assert-Equal ($script:settingsMenuUi.CompressionCurveLine.Points[6].Y-lt $beforeCurve) $true 'Preview updates with stronger initial compression'
-  Assert-Equal $script:energyConversion 65 'Curve leaves stored energy setting unchanged'
+  Assert-Equal $script:energyConversion 55.25 'Curve leaves stored energy setting unchanged'
   $expected=@('查看额度','换一句台词','刷新额度','编辑我的语录','显示与位置','外观设置','重力与弹性','声音与点击','更新','退出 GPT 娘')
   $actual=@($script:context.Items|Where-Object{$_.Header-is [string]}|ForEach-Object{$_.Header})
   Assert-Equal ($actual-join '|') ($expected-join '|') 'Menu entries and removed title block'

@@ -156,7 +156,7 @@ function Initialize-WidgetSettingsMenu {
     Add-SettingsPanel $g.Panel
     $e=New-SettingsSlider '起跳能量' 0.25 3 0.05
     $script:settingsMenuUi.ElasticStrength=$e.Slider;$script:settingsMenuUi.ElasticStrengthText=$e.Value
-    $e.Panel.ToolTip='只调整手动轻点或长按的起跳能量和停跳阈值；碰撞储能由能量转换效率单独控制'
+    $e.Panel.ToolTip='只调整手动轻点或长按的起跳能量和停跳阈值；碰撞储能由反弹程度单独控制'
     $e.Slider.Value=$script:elasticStrength
     $e.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:elasticStrength=[Math]::Round($sender.Value,2);$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $e.Panel
@@ -166,15 +166,15 @@ function Initialize-WidgetSettingsMenu {
     $t.Slider.Value=$script:tapCompression
     $t.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:tapCompression=[Math]::Round($sender.Value,2);$script:settingsMenuUi.TapCompressionText.Text=$script:tapCompression.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $t.Panel
-    $c=New-SettingsSlider '能量转换效率' 0 85 1
-    $c.Panel.ToolTip='撞击能量转成储存弹性能量的比例；越高压缩越深、反弹越高。0 不储能反弹，最高 85% 保留损耗；不影响手动起跳'
+    $c=New-SettingsSlider '反弹程度' 0 100 5
+    $c.Panel.ToolTip='每档 5%；越高压缩越深、反弹越高。0 关闭反弹，100 为最大反弹且仍有能量损耗；不影响手动起跳'
     $script:settingsMenuUi.EnergyConversion=$c.Slider;$script:settingsMenuUi.EnergyConversionText=$c.Value
-    $c.Slider.IsSnapToTickEnabled=$false
-    $c.Slider.Value=$script:energyConversion
-    $c.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:energyConversion=[Math]::Round($sender.Value,2);$script:settingsMenuUi.EnergyConversionText.Text=$script:energyConversion.ToString('0.##')+'%';Set-WidgetPhysicsTuning})
+    $c.Slider.IsSnapToTickEnabled=$true
+    $c.Slider.Value=$script:reboundStrength
+    $c.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:reboundStrength=[int]([Math]::Round($sender.Value/5,0,[MidpointRounding]::AwayFromZero)*5);if($sender.Value-ne $script:reboundStrength){$sender.Value=$script:reboundStrength;return};$script:energyConversion=0.85*$script:reboundStrength;$script:settingsMenuUi.EnergyConversionText.Text=$script:reboundStrength.ToString('0')+'%';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $c.Panel
     $q=New-SettingsSlider 'Q弹程度' 0 3 0.05
-    $q.Panel.ToolTip='触底形变随撞地速度和能量转换效率增大；此滑条额外调节强度，0 关闭形变，1 为标准。先压缩恢复，再弹起'
+    $q.Panel.ToolTip='触底形变随撞地速度和反弹程度增大；此滑条额外调节强度，0 关闭形变，1 为标准。先压缩恢复，再弹起'
     $script:settingsMenuUi.SquishStrength=$q.Slider;$script:settingsMenuUi.SquishStrengthText=$q.Value
     $q.Slider.Value=$script:squishStrength
     $q.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:squishStrength=[Math]::Round($sender.Value,2);$script:settingsMenuUi.SquishStrengthText.Text=$script:squishStrength.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
@@ -301,7 +301,7 @@ function Update-WidgetSettingsMenu{
     $script:settingsMenuUi.GravityStrength.Value=$script:gravityStrength;$script:settingsMenuUi.GravityStrengthText.Text=$script:gravityStrength.ToString('0.0')+'×'
     $script:settingsMenuUi.ElasticStrength.Value=$script:elasticStrength;$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×'
     $script:settingsMenuUi.CompressionCurve.Value=$script:compressionCurve;$script:settingsMenuUi.CompressionCurveText.Text=$script:compressionCurve.ToString('0.00');Update-WidgetCompressionCurvePreview
-    $script:settingsMenuUi.EnergyConversion.Value=$script:energyConversion;$script:settingsMenuUi.EnergyConversionText.Text=$script:energyConversion.ToString('0.##')+'%'
+    $script:settingsMenuUi.EnergyConversion.Value=$script:reboundStrength;$script:settingsMenuUi.EnergyConversionText.Text=$script:reboundStrength.ToString('0')+'%'
     $script:settingsMenuUi.TapCompression.Value=$script:tapCompression;$script:settingsMenuUi.TapCompressionText.Text=$script:tapCompression.ToString('0.00')+'×'
     $script:settingsMenuUi.AnimationSpeed.Value=$script:animationSpeed;$script:settingsMenuUi.AnimationSpeedText.Text=$script:animationSpeed.ToString('0.00')+'×'
     $script:settingsMenuUi.SquishStrength.Value=$script:squishStrength;$script:settingsMenuUi.SquishStrengthText.Text=$script:squishStrength.ToString('0.00')+'×'
