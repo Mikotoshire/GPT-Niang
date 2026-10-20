@@ -50,6 +50,11 @@ try{
   $script:settingsMenuUi.GravityStrength.Value=2.2
   $script:settingsMenuUi.ElasticStrength.Value=1.5
   Assert-Equal $script:gravityStrength 2.2 'Gravity slider updates local preference'
+  Assert-Equal $script:settingsMenuUi.GroundFriction.Minimum 0 'Friction can be disabled'
+  Assert-Equal $script:settingsMenuUi.GroundFriction.Maximum 3 'Friction upper bound'
+  $script:settingsMenuUi.GroundFriction.Value=2.3
+  Assert-Equal $script:groundFriction 2.3 'Friction slider updates the preference'
+  Assert-Equal $script:settingsMenuUi.GroundFrictionText.Text '2.3×' 'Friction slider updates its label'
   Assert-Equal $script:elasticStrength 1.5 'Elasticity slider updates local preference'
   Assert-Equal $script:settingsMenuUi.SquishStrength.Minimum 0 'Squish slider allows zero'
   Assert-Equal $script:settingsMenuUi.SquishStrength.Maximum 3 'Squish slider has a safe upper bound'
@@ -109,6 +114,7 @@ try{
   Assert-Equal $script:settingsMenuUi.EnergyConversionText.Text '75%' 'Preset refreshes rebound label'
   Assert-Equal $script:elasticStrength 1.5 'Preset preserves manual launch energy'
   Assert-Equal $script:gravityStrength 2.2 'Preset preserves user gravity'
+  Assert-Equal $script:groundFriction 2.3 'Natural elasticity preset preserves independent ground friction'
   Assert-Equal $script:tapCompression 2.25 'Preset preserves manual press shape'
   $expected=@('查看额度','换一句台词','刷新额度','编辑我的语录','显示与位置','外观设置','重力与弹性','声音与点击','更新','退出 GPT 娘')
   $actual=@($script:context.Items|Where-Object{$_.Header-is [string]}|ForEach-Object{$_.Header})

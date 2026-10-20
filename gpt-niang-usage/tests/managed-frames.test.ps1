@@ -56,6 +56,7 @@ function Get-WidgetPlacementFrame {return [pscustomobject]@{Left=100;Top=100;Rig
 function Get-WidgetPlacementDpi {return $script:testDpi}
 $script:testDpi=1
 Initialize-WidgetGravity
+if($script:gravityTimer.TargetFps-ne 120){throw 'Animation scheduling must allow 120 FPS'}
 $script:window.Opacity=if($Visible){1}else{0};$script:window.ShowActivated=$false;$script:window.Show()
 $script:widgetHandle=([Windows.Interop.WindowInteropHelper]::new($script:window)).Handle
 $probe=$null
@@ -109,8 +110,16 @@ try{
     $null=$renderMethod.Invoke($script:gravityTimer,@($null,$event))
   }
   $script:gravityTimer.Stop()
-  if($script:gravityTimer.FrameCount-lt 88 -or $script:gravityTimer.FrameCount-gt 92){throw 'The limiter lost its sustained 90-Hz budget'}
-  Write-Output 'PASS: 240-Hz synthetic input remains capped by the sustained 90-Hz budget'
+  if($script:gravityTimer.FrameCount-lt 118 -or $script:gravityTimer.FrameCount-gt 122){throw 'The limiter lost its sustained 120-Hz budget'}
+  Write-Output 'PASS: 240-Hz synthetic input remains capped by the sustained 120-Hz budget'
+  $script:gravityTimer.Start();$arrivalClock.Stop()
+  foreach($index in 0..119){
+    $event=[Activator]::CreateInstance([Windows.Media.RenderingEventArgs],$flags,$null,@([TimeSpan]::FromSeconds(1+$index/120.0)),$null)
+    $null=$renderMethod.Invoke($script:gravityTimer,@($null,$event))
+  }
+  $script:gravityTimer.Stop()
+  if($script:gravityTimer.FrameCount-ne 120){throw 'Valid 120-Hz frames were discarded'}
+  Write-Output 'PASS: all 120 presentation frames survive a one-second 120-Hz input fixture'
   $activity=[Delegate]::CreateDelegate([Func[bool]],$script:gravityTimer,'get_CanObserveFrame')
   $gatedProbe=[FrameInputProbe]::new($activity)
   $gatedObserve=$gatedProbe.GetType().GetMethod('Observe',$probeFlags)
@@ -138,10 +147,10 @@ try{
   # Print on failure too; otherwise the first failing assertion hides the useful measurements.
   Write-Output ('MEASURE: inputHz='+[Math]::Round($probe.Fps,2)+' renderHz='+[Math]::Round($loop.Fps,2)+' frames='+$loop.FrameCount+' meanStepMs='+[Math]::Round($loop.MeanStepMs,3)+' meanCpuMs='+[Math]::Round($loop.MeanCpuMs,3)+' physicsMs='+[Math]::Round($loop.MeanPhysicsMs,3)+' poseMs='+[Math]::Round($loop.MeanPoseMs,3)+' placementMs='+[Math]::Round($loop.MeanPlacementMs,3)+' maxStepMs='+[Math]::Round($loop.MaxStepMs,3))
   if($loop.LastError){throw $loop.LastError}
-  # The requirement is 60 Hz when supplied; the 90-Hz cap is headroom, not a
+  # The requirement is 60 Hz when supplied; the 120-Hz cap is headroom, not a
   # guarantee to process every compositor callback above the required rate.
   $inputHz=$probe.Fps;$expectedHz=[Math]::Min(60,$inputHz)
-  if($probe.Count-lt 10 -or $loop.Fps-lt $expectedHz*0.95 -or $loop.Fps-gt 95){throw ('Render processing lost input cadence: input='+$inputHz+' processed='+$loop.Fps)}
+  if($probe.Count-lt 10 -or $loop.Fps-lt $expectedHz*0.95 -or $loop.Fps-gt 125){throw ('Render processing lost input cadence: input='+$inputHz+' processed='+$loop.Fps)}
   # A hosted source below the requested 60 Hz cannot qualify the hardware,
   # even when it happens to fit the local measurement's 58-Hz tolerance.
   $hardwareQualified=$loop.FrameCount-ge 100 -and $loop.Fps-ge 58 -and (!$AllowLimitedCompositor -or $inputHz-ge 60)
