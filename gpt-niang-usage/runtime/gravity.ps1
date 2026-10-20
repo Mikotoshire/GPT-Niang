@@ -32,7 +32,7 @@ function Get-WidgetGravityPadding {
   return [Math]::Max(0,$script:designHeight-([Windows.Controls.Canvas]::GetTop($script:ui.Root)+[Windows.Controls.Canvas]::GetTop($script:ui.Girl)+$script:ui.Girl.Height))
 }
 function Get-WidgetGravityGeometry {
-  $rect=New-Object GptWidgetNative+Rect
+  $rect=[GptWidgetNative+Rect]::new()
   [GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
   $w=[Math]::Max(1,$rect.Right-$rect.Left);$h=[Math]::Max(1,$rect.Bottom-$rect.Top)
   # WPF rounds the native window at fractional DPI. Use its real client size
@@ -95,7 +95,7 @@ function Set-WidgetGravityScene {
     $scene.Move=[Delegate]::CreateDelegate([Action[int,int,int,string]],$script:hostFollower,'MovePose')
   }
   if(!$script:gravityInertia){
-    $rect=New-Object GptWidgetNative+Rect;[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
+    $rect=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
     $script:gravity.SetHorizontalPosition([Math]::Max(0,($rect.Left-$frame.Left)/$geometry.Unit))
   }
   $script:gravityTimer.Scene=$scene
@@ -122,7 +122,7 @@ function Set-WidgetGravityMode([bool]$Enabled) {
   Set-AnimatedValue $script:ui.PressScale ([Windows.Media.ScaleTransform]::ScaleYProperty) 1
   Set-AnimatedValue $script:ui.GravityScale ([Windows.Media.ScaleTransform]::ScaleXProperty) 1
   Set-AnimatedValue $script:ui.GravityScale ([Windows.Media.ScaleTransform]::ScaleYProperty) 1
-  $rect=New-Object GptWidgetNative+Rect
+  $rect=[GptWidgetNative+Rect]::new()
   [GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
   $frame=Get-WidgetPlacementFrame;$dpi=Get-WidgetPlacementDpi
   if(Test-WidgetPlacementFrame $frame $dpi){
@@ -163,7 +163,7 @@ function Set-WidgetPhysicsTuning {
 }
 function Release-WidgetGravityDrop([switch]$Cancel) {
   $frame=Get-WidgetPlacementFrame;$dpi=Get-WidgetPlacementDpi
-  $rect=New-Object GptWidgetNative+Rect
+  $rect=[GptWidgetNative+Rect]::new()
   [GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
   $geometry=Get-WidgetGravityGeometry
   $height=($frame.Bottom-$rect.Bottom+$geometry.Padding)/$geometry.Unit
@@ -187,7 +187,7 @@ function Update-WidgetGravity {
   $geometry=Get-WidgetGravityGeometry;$unit=$geometry.Unit
   $w=$geometry.Width;$h=$geometry.Height;$padding=$geometry.Padding
   $ceiling=[Math]::Max(0,($frame.Bottom-$frame.Top-$h+$padding)/$unit)
-  $rect=New-Object GptWidgetNative+Rect;[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
+  $rect=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
   if(!$script:gravityInertia){$script:gravity.SetHorizontalPosition([Math]::Max(0,($rect.Left-$frame.Left)/$unit))}
   $width=[Math]::Max(0,($frame.Right-$frame.Left-$w)/$unit)
   $script:gravity.Advance($elapsed,$ceiling,$width);Set-WidgetGravityPose
@@ -200,7 +200,7 @@ function Update-WidgetGravity {
   if($script:followHost){
     $script:hostFollower.MovePose([int]($script:offsetLeft*$dpi),[int]($script:offsetRight*$dpi),[int]($script:gravity.Height*$unit-$padding),$script:anchor)
   }else{
-    $rect=New-Object GptWidgetNative+Rect;[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
+    $rect=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
     $y=[int][Math]::Round($frame.Bottom-$h+$padding-$script:gravity.Height*$unit)
     $script:desktopTop=$y
     [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,$x,$y,0,0,0x15)|Out-Null

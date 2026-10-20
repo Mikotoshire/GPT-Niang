@@ -4,6 +4,68 @@ using System.Runtime.InteropServices;
 using System.Windows.Media;
 
 // AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
+// One active write and one replaceable pending snapshot; no UI callbacks/runspace.
+public sealed class GptLatestFileWriter {
+    readonly object gate = new object();
+    readonly Action<string> write;
+    string pending, error;
+    bool running, closed;
+    long writes, failures;
+    public int PendingCount { get { lock (gate) return pending == null ? 0 : 1; } }
+    public string LastError { get { lock (gate) return error; } }
+    public long Writes { get { lock (gate) return writes; } }
+    public long Failures { get { lock (gate) return failures; } }
+    public GptLatestFileWriter(Action<string> sink) { if (sink == null) throw new ArgumentNullException("sink"); write = sink; }
+    public GptLatestFileWriter(string path) : this(delegate(string text) {
+        string temp = path + ".async.tmp";
+        try {
+            System.IO.File.WriteAllText(temp, text, new System.Text.UTF8Encoding(false));
+            if (System.IO.File.Exists(path)) System.IO.File.Replace(temp, path, path + ".bak", true);
+            else System.IO.File.Move(temp, path);
+        } finally {
+            // A failed write is reported by the worker; cleanup is best effort.
+            try { if (System.IO.File.Exists(temp)) System.IO.File.Delete(temp); } catch { }
+        }
+    }) { }
+    public bool Submit(string text) {
+        if (text == null) throw new ArgumentNullException("text");
+        lock (gate) {
+            if (closed) return false;
+            pending = text;
+            if (!running) {
+                running = true;
+                try { System.Threading.Tasks.Task.Run((Action)Run); }
+                catch { running = false; pending = null; System.Threading.Monitor.PulseAll(gate); throw; }
+            }
+            return true;
+        }
+    }
+    void Run() {
+        while (true) {
+            string text;
+            lock (gate) {
+                text = pending; pending = null;
+                if (text == null) { running = false; System.Threading.Monitor.PulseAll(gate); return; }
+            }
+            try { write(text); lock (gate) { writes++; error = null; } }
+            catch (Exception e) { lock (gate) { failures++; error = e.GetType().Name; } }
+        }
+    }
+    public bool Drain(int milliseconds) {
+        var watch = Stopwatch.StartNew();
+        lock (gate) {
+            while (running) {
+                int remaining = milliseconds - (int)Math.Min(int.MaxValue, watch.ElapsedMilliseconds);
+                if (remaining <= 0) return false;
+                System.Threading.Monitor.Wait(gate, remaining);
+            }
+            return true;
+        }
+    }
+    public bool Close(int milliseconds) { lock (gate) closed = true; return Drain(milliseconds); }
+}
+
+// AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
 // Process path/start-time inspection can stall; never wait for it on the UI thread.
 public sealed class GptWorkerHealthCheck {
     readonly System.Threading.Tasks.Task<bool> task;

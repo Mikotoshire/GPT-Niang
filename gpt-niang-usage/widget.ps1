@@ -174,6 +174,15 @@ function Write-WidgetJson($file,$value){
   $temp=$file+'.tmp';[IO.File]::WriteAllText($temp,($value|ConvertTo-Json -Depth 6),[Text.UTF8Encoding]::new($false))
   if([IO.File]::Exists($file)){[IO.File]::Replace($temp,$file,($file+'.bak'),$true)}else{[IO.File]::Move($temp,$file)}
 }
+# Heartbeat disk I/O is independent of durable synchronous settings writes.
+function Write-WidgetPresence($value) {
+  if(!$script:presenceWriter){$script:presenceWriter=[GptLatestFileWriter]::new((Join-Path $script:dataDir 'presence.json'))}
+  $null=$script:presenceWriter.Submit((ConvertTo-Json -InputObject $value -Depth 6 -Compress))
+  $writeError=$script:presenceWriter.LastError
+  if($writeError){
+    [IO.File]::WriteAllText((Join-Path $script:dataDir 'presence-error.txt'),$writeError,[Text.UTF8Encoding]::new($false))
+  }
+}
 function Save-Settings {Write-WidgetJson $settingsFile @{layoutVersion=2;right=$script:offsetRight;left=$script:offsetLeft;bottom=$script:offsetBottom;anchor=$script:anchor;side=$script:side;scale=$script:scale;collapsed=$script:collapsed;soundOn=$script:soundOn;soundVolume=$script:soundVolume;bubbleTapAdvance=$script:bubbleTapAdvance;hideMenu=$script:hideMenu;colorMode=$script:colorMode;colorChance=$script:colorChance;colorTextChance=$script:colorTextChance;colorPaused=$script:colorPaused;followHost=$script:followHost;desktopTopmost=$script:desktopTopmost;desktopLeft=$script:desktopLeft;desktopTop=$script:desktopTop;gravityEnabled=$script:gravityEnabled;mirrorCharacter=$script:mirrorCharacter;gravityStrength=$script:gravityStrength;elasticStrength=$script:elasticStrength;squishStrength=$script:squishStrength;animationSpeed=$script:animationSpeed;tapCompression=$script:tapCompression;energyConversion=$script:energyConversion;reboundStrength=$script:reboundStrength;compressionCurve=$script:compressionCurve;groundFriction=$script:groundFriction}}
 function Get-WidgetPlacementFrame {
   if($script:followHost){return Get-WidgetVisibleFrame}
@@ -670,8 +679,8 @@ foreach($control in @($script:ui.Bubble,$script:ui.Tail,$script:ui.TailNear)){$c
 $pressDown={param($sender,$event)
   $script:hostFollower.Suspend()
   $script:gravityInertia=$false
-  $cursor=New-Object GptWidgetNative+Point;[GptWidgetNative]::GetCursorPos([ref]$cursor)|Out-Null
-  $rect=New-Object GptWidgetNative+Rect;[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
+  $cursor=[GptWidgetNative+Point]::new();[GptWidgetNative]::GetCursorPos([ref]$cursor)|Out-Null
+  $rect=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
   $script:drag=@{x=$cursor.X;y=$cursor.Y;left=$rect.Left;top=$rect.Top;moved=$false;control=$sender}
   $sender.CaptureMouse()|Out-Null;Animate-Press $true;Play-WidgetPressSound;$event.Handled=$true
 }
@@ -679,7 +688,7 @@ $pressMove={param($sender,$event)
   $dragWatch=if($script:frameProbe -and $script:frameProbe.IsRunning){[Diagnostics.Stopwatch]::StartNew()}else{$null}
   try{
   if(!$script:drag){return}
-  $cursor=New-Object GptWidgetNative+Point;[GptWidgetNative]::GetCursorPos([ref]$cursor)|Out-Null
+  $cursor=[GptWidgetNative+Point]::new();[GptWidgetNative]::GetCursorPos([ref]$cursor)|Out-Null
   $dx=$cursor.X-$script:drag.x;$dy=$cursor.Y-$script:drag.y
   if($dx*$dx+$dy*$dy-lt 9 -and !$script:drag.moved){return}
   # Moving a window under a captured mouse can deliver another event at the
@@ -778,11 +787,18 @@ function Stop-WidgetRuntime {
   try{Stop-WidgetAudio}catch{}
   foreach($hook in $script:eventHooks){try{if($hook-ne [IntPtr]::Zero){[GptWidgetNative]::UnhookWinEvent($hook)|Out-Null}}catch{}}
   if($script:worker){try{if(!$script:worker.HasExited){$script:worker.Kill()}}catch{}; $script:worker.Dispose();$script:worker=$null}
+  $presenceDrained=$true
+  if($script:presenceWriter){$presenceDrained=$script:presenceWriter.Close(250);if(!$presenceDrained){Write-Warning 'Heartbeat writer still finishing during shutdown.'}}
   foreach($name in @('runtime.json','presence.json')){
+    if($name-eq 'presence.json' -and !$presenceDrained){continue}
     $file=Join-Path $script:dataDir $name
     try{$state=Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json;if($state.pid-eq $PID){Remove-Item -LiteralPath $file -ErrorAction SilentlyContinue}}catch{}
   }
-  try{if($script:mutexOwned){$script:mutex.ReleaseMutex();$script:mutexOwned=$false}}catch{};try{$script:mutex.Dispose()}catch{}
+  # A timed-out write may still finish. Keep ownership until process exit so a
+  # new widget cannot start and have its heartbeat overwritten by this writer.
+  if($presenceDrained){
+    try{if($script:mutexOwned){$script:mutex.ReleaseMutex();$script:mutexOwned=$false}}catch{};try{$script:mutex.Dispose()}catch{}
+  }
 }
 function Tick-Widget {
   if($script:gravityTimer -and $script:gravityTimer.IsEnabled){Sync-WidgetGravityPosition}
@@ -863,7 +879,7 @@ function Tick-Widget {
   if($placementWatch){$placementWatch.Stop();$script:frameProbe.RecordWork('placement',$placementWatch.Elapsed.TotalMilliseconds)}
   if($now-$script:lastPresence-ge 1000){
     $persistenceWatch=if($maintenanceWatch){[Diagnostics.Stopwatch]::StartNew()}else{$null}
-    Write-WidgetJson (Join-Path $script:dataDir 'presence.json') @{visible=[bool]$visible;at=$now;host=$script:hostHandle.ToInt64();widget=$script:widgetHandle.ToInt64();pid=$PID;followHost=$script:followHost;gravity=@{targetFps=$script:gravityTimer.TargetFps;renderFps=$script:gravityTimer.Fps;frameCount=$script:gravityTimer.FrameCount;maxStepMs=$script:gravityTimer.MaxStepMs;meanStepMs=$script:gravityTimer.MeanStepMs;enabled=$script:gravityEnabled;height=$script:gravity.Height;velocity=$script:gravity.Velocity;charge=$script:gravity.Charge;rebounds=$script:gravity.Rebounds;active=$script:gravity.Active};follow=@{ready=$script:hostFollower.Ready;events=$script:hostFollower.MovementEvents;mode='native-immediate';animationPaddingDip=14};scene=@{open=!$script:collapsed;mode=$script:bubbleMode;resetTimeMode=$script:resetTimeMode;startedAt=$script:sceneStartedAt;closesAt=$script:sceneDeadline;shortReset=$script:ui.ShortReset.Text;weekReset=$script:ui.WeekReset.Text}}
+    Write-WidgetPresence @{visible=[bool]$visible;at=$now;host=$script:hostHandle.ToInt64();widget=$script:widgetHandle.ToInt64();pid=$PID;followHost=$script:followHost;gravity=@{targetFps=$script:gravityTimer.TargetFps;renderFps=$script:gravityTimer.Fps;frameCount=$script:gravityTimer.FrameCount;maxStepMs=$script:gravityTimer.MaxStepMs;meanStepMs=$script:gravityTimer.MeanStepMs;enabled=$script:gravityEnabled;height=$script:gravity.Height;velocity=$script:gravity.Velocity;charge=$script:gravity.Charge;rebounds=$script:gravity.Rebounds;active=$script:gravity.Active};follow=@{ready=$script:hostFollower.Ready;events=$script:hostFollower.MovementEvents;mode='native-immediate';animationPaddingDip=14};scene=@{open=!$script:collapsed;mode=$script:bubbleMode;resetTimeMode=$script:resetTimeMode;startedAt=$script:sceneStartedAt;closesAt=$script:sceneDeadline;shortReset=$script:ui.ShortReset.Text;weekReset=$script:ui.WeekReset.Text}}
     if($persistenceWatch){$persistenceWatch.Stop();$script:frameProbe.RecordWork('persistence',$persistenceWatch.Elapsed.TotalMilliseconds)}
     Update-Quota;$script:lastPresence=$now
     Read-DisplayRequest
