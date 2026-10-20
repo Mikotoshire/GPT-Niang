@@ -159,6 +159,12 @@ function Initialize-WidgetSettingsMenu {
     $e.Slider.Value=$script:elasticStrength
     $e.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:elasticStrength=[Math]::Round($sender.Value,2);$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $e.Panel
+    $q=New-SettingsSlider 'Q弹程度' 0 3 0.05
+    $q.Panel.ToolTip='仅调整触底压扁与回弹形变；0 为关闭，1 为原有效果，不改变弹跳高度'
+    $script:settingsMenuUi.SquishStrength=$q.Slider;$script:settingsMenuUi.SquishStrengthText=$q.Value
+    $q.Slider.Value=$script:squishStrength
+    $q.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:squishStrength=[Math]::Round($sender.Value,2);$script:settingsMenuUi.SquishStrengthText.Text=$script:squishStrength.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
+    Add-SettingsPanel $q.Panel
   } -ReturnItem
   $script:settingsMenuUi.Colors=Add-SettingsSubmenu '配色效果' {
   $script:settingsMenuUi.ColorMixed=Add-SettingsAction '台词与颜色独立随机' {Set-WidgetColorMode 'mixed';Save-Settings;Update-WidgetSettingsMenu} -Description '先抽台词，再抽变色；每句都能触发' -Checkable -ReturnItem
@@ -253,6 +259,7 @@ function Update-WidgetSettingsMenu{
     $script:settingsMenuUi.Mirror.IsChecked=$script:mirrorCharacter
     $script:settingsMenuUi.GravityStrength.Value=$script:gravityStrength;$script:settingsMenuUi.GravityStrengthText.Text=$script:gravityStrength.ToString('0.0')+'×'
     $script:settingsMenuUi.ElasticStrength.Value=$script:elasticStrength;$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×'
+    $script:settingsMenuUi.SquishStrength.Value=$script:squishStrength;$script:settingsMenuUi.SquishStrengthText.Text=$script:squishStrength.ToString('0.00')+'×'
     $script:settingsMenuUi.ColorLinked.IsChecked=$script:colorMode-eq 'linked';$script:settingsMenuUi.ColorRainbow.IsChecked=$script:colorMode-eq 'rainbow';$script:settingsMenuUi.ColorOriginal.IsChecked=$script:colorMode-eq 'original'
     $script:settingsMenuUi.ColorSurprise.IsChecked=$script:colorMode-eq 'surprise';$script:settingsMenuUi.ColorRare.IsChecked=$script:colorMode-eq 'rare';$script:settingsMenuUi.ColorSpecial.IsChecked=$script:colorMode-eq 'special'
     $script:settingsMenuUi.ColorMixed.IsChecked=$script:colorMode-eq 'mixed'

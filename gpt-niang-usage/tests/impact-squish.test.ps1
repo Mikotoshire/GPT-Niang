@@ -9,7 +9,7 @@ $models=@()
 foreach($strength in @(0,1,3)){
   $m=[GptGravityModel]::new();$m.SetImpactSquish($strength);$m.DropFrom(12);$models+=,$m
 }
-$maxDefault=0;$maxStrong=0
+$maxDefault=0.0;$maxStrong=0.0
 for($i=0;$i-lt 300;$i++){
   foreach($m in $models){$m.Advance(1.0/240,900,1000)}
   Assert ($models[0].Height-eq $models[2].Height -and $models[0].Velocity-eq $models[2].Velocity -and $models[0].HorizontalVelocity-eq $models[2].HorizontalVelocity) 'Squish must not change physics'
@@ -41,6 +41,16 @@ function Import-TestFunction($file,$name){
 }
 . ([scriptblock]::Create((Import-TestFunction (Join-Path $AppDir 'runtime/gravity.ps1') 'Set-WidgetPhysicsTuning')))
 . ([scriptblock]::Create((Import-TestFunction (Join-Path $AppDir 'widget.ps1') 'Save-Settings')))
+$tokens=$null;$errors=$null
+$widgetAst=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText((Join-Path $AppDir 'widget.ps1')),[ref]$tokens,[ref]$errors)
+$loadPreference=$widgetAst.Find({param($n)$n-is [Management.Automation.Language.IfStatementAst] -and $n.Extent.Text.StartsWith('if($null-ne $settings.squishStrength)')},$true)
+Assert ($null-ne $loadPreference) 'Startup loads the saved setting'
+foreach($value in @($null,0,2.25,-1,4,'broken',[double]::NaN,[double]::PositiveInfinity)){
+  $settings=@{squishStrength=$value};$script:squishStrength=1.0
+  . ([scriptblock]::Create($loadPreference.Extent.Text))
+  $expected=if($null-ne $value -and $value-is [ValueType] -and $value-ge 0 -and $value-le 3){[double]$value}else{1.0}
+  Assert ($script:squishStrength-eq $expected) 'Old and invalid preferences safely default; zero is preserved'
+}
 $temporary=Join-Path ([IO.Path]::GetTempPath()) ('squish-setting-'+[Guid]::NewGuid().ToString('N'))
 $script:settingsFile=Join-Path $temporary 'settings.json'
 function Write-WidgetJson($file,$data){[IO.Directory]::CreateDirectory($temporary)|Out-Null;[IO.File]::WriteAllText($file,($data|ConvertTo-Json))}

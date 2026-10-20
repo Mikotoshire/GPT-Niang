@@ -30,7 +30,9 @@ function Initialize-WidgetGravity {
   $script:gravitySampler=[GptDragVelocity]::new()
   if($null-eq $script:gravityStrength){$script:gravityStrength=1.6}
   if($null-eq $script:elasticStrength){$script:elasticStrength=1.0}
+  if($null-eq $script:squishStrength){$script:squishStrength=1.0}
   $script:gravity.SetTuning($script:gravityStrength,$script:elasticStrength)
+  $script:gravity.SetImpactSquish($script:squishStrength)
   if($script:gravityEnabled){$script:gravity.DropFrom([Math]::Max(0,$script:offsetBottom/[Math]::Max(0.1,$script:displayScale)))}
   $script:gravityClock=[Diagnostics.Stopwatch]::StartNew()
   $script:gravityTimer=[GptGravityRenderLoop]::new()
@@ -109,6 +111,7 @@ function Begin-WidgetGravityDrag {
 }
 function Set-WidgetPhysicsTuning {
   $script:gravity.SetTuning($script:gravityStrength,$script:elasticStrength)
+  $script:gravity.SetImpactSquish($script:squishStrength)
   Save-Settings
 }
 function Release-WidgetGravityDrop([switch]$Cancel) {

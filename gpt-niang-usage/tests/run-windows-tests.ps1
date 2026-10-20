@@ -11,6 +11,8 @@ if($WidgetOnly){
   return
 }
 $powerShell=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+& $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'impact-squish.test.ps1')
+if($LASTEXITCODE-ne 0){throw 'Impact squish regression failed.'}
 & $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'quota-cache.test.ps1')
 if($LASTEXITCODE-ne 0){throw 'Quota cache regression failed.'}
 & $powerShell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'plugin-registration.test.ps1')

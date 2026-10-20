@@ -27,6 +27,12 @@ public sealed class GptGravityModel {
     public bool Active { get { return IsPressed || ReleasePending || flying || impact > 0; } }
     public double GravityMultiplier { get; private set; }
     public double Elasticity { get; private set; }
+    // AI-generated maintenance, insufficiently validated; see AI-NOTICE.md.
+    public double ImpactSquish { get; private set; }
+    public void SetImpactSquish(double value) {
+        ImpactSquish = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0, Math.Min(3, value));
+        UpdatePose();
+    }
     public double EffectiveGravity { get { return Gravity * GravityMultiplier; } }
     public double TapApex { get { return TapHeight * Elasticity; } }
     public void SetTuning(double gravity, double elasticity) {
@@ -82,7 +88,7 @@ public sealed class GptGravityModel {
     double age, held, impact, relax, releasedX, releasedY;
     bool flying, multiple;
 
-    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; Reset(); }
+    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; Reset(); }
     public void Reset() {
         CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
@@ -195,7 +201,7 @@ public sealed class GptGravityModel {
             ScaleX = 1 + 0.05 * ease + 0.4 * Charge;
         } else {
             double stretch = flying ? Math.Min(0.06, Math.Abs(Velocity) / 14000) : 0;
-            double pulse = impact > 0 ? Math.Sin(Math.PI * (1 - impact / 0.12)) : 0;
+            double pulse = impact > 0 ? ImpactSquish * Math.Sin(Math.PI * (1 - impact / 0.12)) : 0;
             ScaleX = 1 - stretch * 0.5 + pulse * 0.08;
             ScaleY = 1 + stretch - pulse * 0.15;
             if (relax > 0) {
