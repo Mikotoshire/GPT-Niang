@@ -30,6 +30,7 @@ try {
   $now=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
   $script:updateStartedAt=$now-60000;$script:updateLastTick=0
   Tick-WidgetUpdater $now
+  if(Test-Path -LiteralPath (Join-Path $script:dataDir 'update-idle.json')){throw 'An inactive disabled release updater must not write idle telemetry every second.'}
   if($script:startedModes.Count){throw 'Fork must not start release updater processes in the background.'}
   Write-Output 'PASS: personal fork disables automatic/manual release updates, persists the disabled preference, and explains Git maintenance.'
 } finally {

@@ -251,6 +251,7 @@ function Initialize-WidgetSettingsMenu {
     $script:settingsMenuUi.UpdateVersion=Add-SettingsAction '当前版本' {} -ReturnItem;$script:settingsMenuUi.UpdateVersion.IsEnabled=$false
     $updateLabel=if($script:releaseUpdatesDisabled){'个人版更新说明'}else{'检查并更新'}
     Add-SettingsAction $updateLabel {Start-WidgetUpdate 'manual'}
+    Add-SettingsAction '记录60秒性能' {Start-WidgetFrameProbe} -Description '本机记录帧间隔和耗时，不保存账号或额度内容'
     $script:settingsMenuUi.AutoUpdate=Add-SettingsAction '自动更新' {param($sender,$event)Set-WidgetAutomaticUpdate ([bool]$sender.IsChecked)} -Checkable -ReturnItem
     $status=New-SettingsText '' 12 '#927AAB';$status.TextWrapping=[Windows.TextWrapping]::Wrap
     $script:settingsMenuUi.UpdateStatus=Add-SettingsPanel $status -Passive -ReturnItem
@@ -330,10 +331,13 @@ function Update-WidgetSettingsMenu{
 }
 
 function Open-WidgetMenu {
+  $menuWatch=if($script:frameProbe -and $script:frameProbe.IsRunning){[Diagnostics.Stopwatch]::StartNew()}else{$null}
+  try{
   Set-WidgetMenuBounds
   Update-WidgetSettingsMenu
   $script:context.IsOpen=$true
   Position-WidgetMenuToHost
+  }finally{if($menuWatch){$menuWatch.Stop();$script:frameProbe.RecordWork('menu',$menuWatch.Elapsed.TotalMilliseconds)}}
 }
 
 function Set-WidgetMenuBounds {

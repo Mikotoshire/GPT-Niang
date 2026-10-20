@@ -82,15 +82,16 @@ function Test-WidgetColorActive([string]$Text){
   }
   return $script:widgetColors.lucky
 }
-function Restore-WidgetOriginalColors([switch]$KeepAnimation) {
+function Restore-WidgetOriginalColors([switch]$KeepAnimation,$Rows=$null) {
+  if($null-eq $Rows){$Rows=Get-QuotaRows}
   foreach($binding in $script:widgetColors.original){$binding.element.($binding.property)=$binding.value}
-  foreach($row in (Get-QuotaRows)){
+  foreach($row in $Rows){
     $q=$row.window
     $expired=$q -and $q.resetsAt -and [double]$q.resetsAt-le [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     $ink=if(!$q -or $expired){'#95889F'}elseif([double]$q.used-ge 90){'#B74839'}elseif([double]$q.used-ge 75){'#A06C1C'}else{'#745A98'}
     $bar=if(!$q){'#AA95CD'}elseif($expired){'#B3A7C0'}elseif([double]$q.used-ge 90){'#D77659'}elseif([double]$q.used-ge 75){'#D0A051'}else{'#9B86C1'}
-    $script:ui[$row.prefix+'Left'].Foreground=[Windows.Media.BrushConverter]::new().ConvertFromString($ink)
-    $script:ui[$row.prefix+'Bar'].Background=[Windows.Media.BrushConverter]::new().ConvertFromString($bar)
+    $script:ui[$row.prefix+'Left'].Foreground=(Get-WidgetStaticBrush $ink)
+    $script:ui[$row.prefix+'Bar'].Background=(Get-WidgetStaticBrush $bar)
   }
   $script:widgetColors.halo.Visibility=[Windows.Visibility]::Collapsed
   $script:widgetColors.tint.Visibility=[Windows.Visibility]::Collapsed
@@ -198,18 +199,19 @@ function Initialize-WidgetColors {
   $script:window.Add_Closed({if($script:widgetColors){Set-WidgetColorAnimation $false}})
   Update-WidgetColorScene
 }
-function Update-WidgetColorScene {
+function Update-WidgetColorScene($Rows=$null) {
   if(!$script:widgetColors){return}
+  if($null-eq $Rows){$Rows=Get-QuotaRows}
   $text=if($script:bubbleMode-eq 'quote'){[string]$script:ui.QuoteText.Tag}else{''}
   if(!$text -and $script:bubbleMode-eq 'quote'){$text=$script:ui.QuoteText.Text}
   $script:widgetColors.scope=Get-WidgetColorScope $text
   $script:widgetColors.active=$script:widgetColors.scope-ne 'none'
-  if(!$script:widgetColors.active){Restore-WidgetOriginalColors;return}
+  if(!$script:widgetColors.active){Restore-WidgetOriginalColors -Rows $Rows;return}
   $palette=if($script:colorMode-eq 'rainbow' -or $script:bubbleMode-ne 'quote'){'rainbow'}else{Resolve-WidgetColorPalette $text}
   Set-WidgetColorPalette $palette
   $accent=$script:widgetColors.brushes.accent;$surface=$script:widgetColors.brushes.surface;$ink=$script:widgetColors.brushes.ink
   if($script:widgetColors.scope-eq 'text'){
-    Restore-WidgetOriginalColors -KeepAnimation
+    Restore-WidgetOriginalColors -KeepAnimation -Rows $Rows
     $script:ui.QuoteText.Foreground=$ink
     Set-WidgetColorAnimation ($script:window.IsVisible -and !$script:colorPaused)
     return
@@ -217,7 +219,7 @@ function Update-WidgetColorScene {
   foreach($name in @('BubbleShape','Tail','TailNear')){$script:ui[$name].Stroke=$accent;$script:ui[$name].Fill=$surface}
   foreach($name in @('Header','QuoteText','Refresh','MenuButton')){$script:ui[$name].Foreground=$ink}
   $script:ui.MenuButton.Background=$surface
-  foreach($row in (Get-QuotaRows)){
+  foreach($row in $Rows){
     $q=$row.window
     $expired=$q -and $q.resetsAt -and [double]$q.resetsAt-le [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
     # Preserve existing orange/red quota warnings and unavailable values.

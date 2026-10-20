@@ -3,6 +3,122 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows.Media;
 
+// AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
+// Process path/start-time inspection can stall; never wait for it on the UI thread.
+public sealed class GptWorkerHealthCheck {
+    readonly System.Threading.Tasks.Task<bool> task;
+    public bool IsCompleted { get { return task.IsCompleted; } }
+    public bool Healthy { get { return task.Status == System.Threading.Tasks.TaskStatus.RanToCompletion && task.Result; } }
+    public GptWorkerHealthCheck(Func<bool> check) { task = System.Threading.Tasks.Task.Run(check); }
+    public GptWorkerHealthCheck(int pid, string expectedPath, long startedAt, int parentPid) : this(delegate {
+        try {
+            using (var process = Process.GetProcessById(pid)) {
+                if (!String.Equals(process.MainModule.FileName, expectedPath, StringComparison.OrdinalIgnoreCase) || process.StartTime.ToUniversalTime() > DateTimeOffset.FromUnixTimeMilliseconds(startedAt).UtcDateTime) return false;
+            }
+            if (parentPid > 0) using (var parent = Process.GetProcessById(parentPid)) { if (parent.HasExited) return false; }
+            return true;
+        } catch { return false; }
+    }) { }
+}
+
+// AI-generated diagnostics; insufficiently validated. Numeric bounded data only.
+public sealed class GptFrameGapMetrics {
+    readonly long[] histogram = new long[1001];
+    double last = double.NaN, total;
+    public long Count { get; private set; }
+    public long Over25Ms { get; private set; }
+    public long Over50Ms { get; private set; }
+    public long Over100Ms { get; private set; }
+    public double MaxMs { get; private set; }
+    public double MeanMs { get { return Count == 0 ? 0 : total / Count; } }
+    public double P95Ms { get { return Percentile(.95); } }
+    public double P99Ms { get { return Percentile(.99); } }
+    double Percentile(double fraction) {
+        if (Count == 0) return 0;
+        long target = (long)Math.Ceiling(Count * fraction), n = 0;
+        for (int i = 0; i < histogram.Length; i++) { n += histogram[i]; if (n >= target) return i; }
+        return 1000;
+    }
+    public void Record(double milliseconds) {
+        if (double.IsNaN(milliseconds) || double.IsInfinity(milliseconds)) return;
+        if (double.IsNaN(last)) { last = milliseconds; return; }
+        if (milliseconds <= last) return;
+        double gap = milliseconds - last; last = milliseconds;
+        Count++; total += gap; MaxMs = Math.Max(MaxMs, gap);
+        histogram[(int)Math.Min(1000, Math.Ceiling(gap))]++;
+        if (gap > 25) Over25Ms++; if (gap >= 50) Over50Ms++; if (gap >= 100) Over100Ms++;
+    }
+    public void Break() { last = double.NaN; }
+    public void Reset() { Array.Clear(histogram, 0, histogram.Length); Count = Over25Ms = Over50Ms = Over100Ms = 0; MaxMs = total = 0; Break(); }
+}
+public sealed class GptFrameWorkEvent {
+    public string Kind { get; set; }
+    public double AtMs { get; set; }
+    public double DurationMs { get; set; }
+}
+public sealed class GptFrameWorkSummary {
+    public string Kind { get; private set; }
+    public long Count { get; private set; }
+    public double MaxMs { get; private set; }
+    double total;
+    public double MeanMs { get { return Count == 0 ? 0 : total / Count; } }
+    public GptFrameWorkSummary(string kind) { Kind = kind; }
+    public void Add(double milliseconds) { Count++; total += milliseconds; MaxMs = Math.Max(MaxMs, milliseconds); }
+}
+public sealed class GptFrameProbe : IDisposable {
+    readonly Stopwatch clock = Stopwatch.StartNew();
+    readonly int seconds;
+    readonly System.Collections.Generic.Queue<GptFrameWorkEvent> work = new System.Collections.Generic.Queue<GptFrameWorkEvent>();
+    readonly System.Collections.Generic.Queue<GptFrameWorkEvent> stalls = new System.Collections.Generic.Queue<GptFrameWorkEvent>();
+    TimeSpan lastPresentation = TimeSpan.MinValue;
+    public GptFrameGapMetrics Presentation { get; private set; }
+    public GptFrameGapMetrics Delivery { get; private set; }
+    public bool IsRunning { get; private set; }
+    public string SessionId { get; private set; }
+    public bool Paused { get; set; }
+    public double ElapsedMs { get { return clock.Elapsed.TotalMilliseconds; } }
+    public long WorkCount { get; private set; }
+    public double MaxWorkMs { get; private set; }
+    public GptFrameWorkEvent[] WorkEvents { get { return work.ToArray(); } }
+    public GptFrameWorkEvent[] Stalls { get { return stalls.ToArray(); } }
+    double previousDelivery = double.NaN;
+    readonly GptFrameWorkSummary[] summary = new[] { new GptFrameWorkSummary("quota"), new GptFrameWorkSummary("maintenance"), new GptFrameWorkSummary("drag"), new GptFrameWorkSummary("menu"), new GptFrameWorkSummary("worker"), new GptFrameWorkSummary("placement"), new GptFrameWorkSummary("persistence") };
+    public GptFrameWorkSummary[] WorkSummary { get { return (GptFrameWorkSummary[])summary.Clone(); } }
+    public GptFrameProbe(int durationSeconds) {
+        seconds = Math.Max(5, Math.Min(120, durationSeconds));
+        SessionId = Guid.NewGuid().ToString("N");
+        Presentation = new GptFrameGapMetrics(); Delivery = new GptFrameGapMetrics();
+        IsRunning = true; CompositionTarget.Rendering += Observe;
+    }
+    static void AddBounded(System.Collections.Generic.Queue<GptFrameWorkEvent> queue, GptFrameWorkEvent value) {
+        if (queue.Count == 32) queue.Dequeue(); queue.Enqueue(value);
+    }
+    void Observe(object sender, EventArgs args) {
+        if (!IsRunning) return;
+        var frame = args as RenderingEventArgs;
+        if (Paused) { Presentation.Break(); Delivery.Break(); previousDelivery = double.NaN; }
+        else if (frame != null && frame.RenderingTime > lastPresentation) {
+            lastPresentation = frame.RenderingTime;
+            double now = ElapsedMs;
+            Presentation.Record(frame.RenderingTime.TotalMilliseconds); Delivery.Record(now);
+            if (!double.IsNaN(previousDelivery) && now - previousDelivery > 25)
+                AddBounded(stalls, new GptFrameWorkEvent { Kind = "delivery", AtMs = now, DurationMs = now - previousDelivery });
+            previousDelivery = now;
+        }
+        if (ElapsedMs >= seconds * 1000) Dispose();
+    }
+    public void RecordWork(string kind, double milliseconds) {
+        if (!IsRunning || milliseconds < 0 || double.IsNaN(milliseconds) || double.IsInfinity(milliseconds)) return;
+        GptFrameWorkSummary item = null;
+        for (int i = 0; i < summary.Length; i++) if (summary[i].Kind == kind) { item = summary[i]; break; }
+        if (item == null) return;
+        item.Add(milliseconds);
+        WorkCount++; MaxWorkMs = Math.Max(MaxWorkMs, milliseconds);
+        AddBounded(work, new GptFrameWorkEvent { Kind = kind, AtMs = ElapsedMs, DurationMs = milliseconds });
+    }
+    public void Dispose() { if (!IsRunning) return; IsRunning = false; CompositionTarget.Rendering -= Observe; clock.Stop(); }
+}
+
 // Configuration is refreshed by PowerShell at input/layout boundaries, never per frame.
 public sealed class GptGravityScene {
     public GptGravityModel Model;

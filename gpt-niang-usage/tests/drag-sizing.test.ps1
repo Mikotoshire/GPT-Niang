@@ -7,6 +7,8 @@ $ast=[Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[r
 if($errors.Count){throw ($errors|Out-String)}
 $move=$ast.Find({param($node)$node-is [Management.Automation.Language.AssignmentStatementAst] -and $node.Left.Extent.Text-eq '$pressMove'},$true)
 $pressMove=[ScriptBlock]::Create($move.Right.Extent.Text.Trim().Substring(1,$move.Right.Extent.Text.Trim().Length-2))
+$script:drag=$null
+& $pressMove $null $null # Safe startup warm-up must not require a native window.
 $tick=$ast.Find({param($node)$node-is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name-eq 'Tick-Widget'},$true)
 . ([ScriptBlock]::Create($tick.Extent.Text))
 Add-Type -TypeDefinition @'

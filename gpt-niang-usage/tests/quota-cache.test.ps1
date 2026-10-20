@@ -6,7 +6,7 @@ $source=[IO.File]::ReadAllText((Join-Path (Split-Path $TestRoot -Parent) 'widget
 $tokens=$null;$errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
 if($errors.Count){throw 'Widget syntax errors'}
-foreach($name in @('Request-Refresh','Update-Quota')){
+foreach($name in @('Get-WidgetStaticBrush','Request-Refresh','Update-Quota')){
   $definition=$ast.Find({param($n) $n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq $name},$true)
   . ([scriptblock]::Create($definition.Extent.Text))
 }

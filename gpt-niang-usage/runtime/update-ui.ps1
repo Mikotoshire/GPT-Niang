@@ -58,6 +58,9 @@ function Update-WidgetUpdateMenu {
 }
 function Tick-WidgetUpdater([long]$Now) {
   if($Now-$script:updateLastTick-lt 1000){return};$script:updateLastTick=$Now
+  # The personal fork has no release update to wait for. Avoid redundant disk
+  # telemetry unless an explicitly started updater is actually running.
+  if($script:releaseUpdatesDisabled -and !$script:updateProcess){if($script:context.IsOpen){Update-WidgetUpdateMenu};return}
   Write-WidgetSupervisorJson (Join-Path $script:dataDir 'update-idle.json') @{at=$Now;pid=$PID;editor=(Test-WidgetUpdateEditor);menu=[bool]$script:context.IsOpen;drag=[bool]$script:drag}
   if($script:updateProcess -and $script:updateProcess.HasExited){
     if($script:updateProcess.ExitCode-ne 0){Write-WidgetSupervisorJson (Join-Path $script:dataDir 'update-status.json') @{phase='failed';message='更新进程异常退出，请检查安装配置后再重试。';nextCheckAt=$Now+86400000}}

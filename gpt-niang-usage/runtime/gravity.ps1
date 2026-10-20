@@ -11,6 +11,22 @@ if(!('GptGravityRenderLoop' -as [type])){
   Add-Type -Path @((Join-Path $PSScriptRoot 'gravity-model.cs'),(Join-Path $PSScriptRoot 'gravity-render.cs')) -ReferencedAssemblies @($gravityLibrary,[Windows.Media.CompositionTarget].Assembly.Location,[Windows.DependencyObject].Assembly.Location)
 }
 
+function Start-WidgetFrameProbe([int]$Seconds=60) {
+  if($script:frameProbe){Complete-WidgetFrameProbe -Force}
+  $script:frameProbe=[GptFrameProbe]::new($Seconds)
+  $script:frameProbeDeadline=[DateTime]::UtcNow.AddSeconds([Math]::Max(5,[Math]::Min(120,$Seconds)))
+  try{Write-WidgetJson (Join-Path $script:dataDir 'frame-diagnostics.json') @{schema=1;session=$script:frameProbe.SessionId;state='recording';seconds=[Math]::Max(5,[Math]::Min(120,$Seconds))}}
+  catch{$script:frameProbe.Dispose();$script:frameProbe=$null;throw}
+}
+function Complete-WidgetFrameProbe([switch]$Force) {
+  $probe=$script:frameProbe
+  if(!$probe){return}
+  if($Force -or [DateTime]::UtcNow-ge $script:frameProbeDeadline){$probe.Dispose()}
+  if($probe.IsRunning){return}
+  try{
+    Write-WidgetJson (Join-Path $script:dataDir 'frame-diagnostics.json') @{schema=1;session=$probe.SessionId;state='complete';elapsedMs=$probe.ElapsedMs;presentation=$probe.Presentation;delivery=$probe.Delivery;workCount=$probe.WorkCount;maxWorkMs=$probe.MaxWorkMs;summary=$probe.WorkSummary;work=$probe.WorkEvents;stalls=$probe.Stalls}
+  }finally{$script:frameProbe=$null}
+}
 function Get-WidgetGravityPadding {
   # Ground is the visible character's feet, excluding the transparent canvas margin.
   return [Math]::Max(0,$script:designHeight-([Windows.Controls.Canvas]::GetTop($script:ui.Root)+[Windows.Controls.Canvas]::GetTop($script:ui.Girl)+$script:ui.Girl.Height))

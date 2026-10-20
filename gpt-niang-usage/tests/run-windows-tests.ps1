@@ -11,6 +11,8 @@ if($WidgetOnly){
   return
 }
 $powerShell=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+& $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'frame-diagnostics.test.ps1')
+if($LASTEXITCODE-ne 0){throw 'Frame diagnostics regression failed.'}
 & $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'ground-friction.test.ps1')
 if($LASTEXITCODE-ne 0){throw 'Ground friction regression failed.'}
 & $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'energy-duration.test.ps1')

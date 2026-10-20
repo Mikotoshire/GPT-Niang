@@ -308,6 +308,7 @@ function Read-DisplayRequest {
         if($request.mode-eq 'quota'){Show-Quota}
         elseif($request.mode-eq 'quote'){if($script:collapsed){Show-Quota};Switch-Scene 'quote'}
         elseif($request.mode-eq 'menu' -and $script:window.IsVisible){Open-WidgetMenu}
+        elseif($request.mode-eq 'frame-probe'){if($null-ne $request.seconds){Start-WidgetFrameProbe ([int]$request.seconds)}else{Start-WidgetFrameProbe}}
         elseif($request.mode-eq 'close-menu'){$script:context.IsOpen=$false}
       }
     }
@@ -322,11 +323,12 @@ function Apply-Scene {
   $script:ui.Refresh.Visibility=$script:ui.QuotaText.Visibility;$script:ui.LiveDot.Visibility=[Windows.Visibility]::Collapsed
   Update-BubbleTooltip
 }
-function Update-BubbleTooltip {
+function Update-BubbleTooltip($Rows=$null) {
+  if($null-eq $Rows){$Rows=Get-QuotaRows}
   $copy=if($script:bubbleMode-eq 'quote'){$script:ui.QuoteText.Tag}else{
     $parts=@()
     if($script:status.planLabel){$parts+='当前套餐：'+$script:status.planLabel}
-    foreach($row in (Get-QuotaRows)){
+    foreach($row in $Rows){
       if($script:ui[$row.prefix+'Row'].Visibility-ne [Windows.Visibility]::Collapsed){
         $reset=$script:ui[$row.prefix+'Reset']
         $detail=if($reset.ToolTip){[string]$reset.ToolTip}else{$reset.Text}
@@ -341,7 +343,7 @@ function Update-BubbleTooltip {
     }
     # If an individual cap coexists with both timed windows, the second row
     # shows the shortest timed window consistently; retain all others in the tooltip.
-    $shown=@((Get-QuotaRows)|ForEach-Object{$_.window})
+    $shown=@($Rows|ForEach-Object{$_.window})
     foreach($q in @($script:status.windows|Where-Object{$null-ne $_ -and $_ -notin $shown})){
       $label=Get-QuotaWindowLabel $q ''
       $detail=if($q.resetsAt){Format-ResetTime ([long]$q.resetsAt) ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds())}else{'未提供重置时间'}
@@ -534,14 +536,27 @@ function Set-ResetTimeMode([string]$mode,[long]$nowMilliseconds){
     if($q -and $null-ne $q.resetsAt -and [double]$q.resetsAt-gt 0){$script:ui[$row.prefix+'Reset'].Text=Format-ResetDisplay ([long]$q.resetsAt) $now}
   }
 }
+# AI-generated maintenance; insufficiently validated. Reuse immutable static brushes.
+function Get-WidgetStaticBrush([string]$Color){
+  if(!$script:widgetSolidBrushes){$script:widgetSolidBrushes=@{}}
+  if(!$script:widgetSolidBrushes.ContainsKey($Color)){
+    if($script:widgetSolidBrushes.Count-ge 32){$script:widgetSolidBrushes.Clear()}
+    $brush=[Windows.Media.BrushConverter]::new().ConvertFromString($Color);$brush.Freeze()
+    $script:widgetSolidBrushes[$Color]=$brush
+  }
+  return $script:widgetSolidBrushes[$Color]
+}
 function Update-Quota {
+  $quotaWatch=if($script:frameProbe -and $script:frameProbe.IsRunning){[Diagnostics.Stopwatch]::StartNew()}else{$null}
+  try{
   $file=Join-Path $script:dataDir 'status.json'
   try{$stamp=[IO.File]::GetLastWriteTimeUtc($file).Ticks
     if(!(Test-Path -LiteralPath $file)){$script:status=$null;$script:statusStamp=0}
     elseif($stamp-ne $script:statusStamp){$script:status=Get-Content -LiteralPath $file -Raw -Encoding UTF8 | ConvertFrom-Json;$script:statusStamp=$stamp}
   }catch{$script:status=$null;$script:statusStamp=0}
   $now=[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-  foreach($row in (Get-QuotaRows)){
+  $quotaRows=Get-QuotaRows
+  foreach($row in $quotaRows){
     $prefix=$row.prefix;$q=$row.window
     $script:ui[$prefix+'Label'].Text=$row.label
     $script:ui[$prefix+'Row'].Visibility=if(!$q -and $script:status.queryOk-eq $true){[Windows.Visibility]::Collapsed}else{[Windows.Visibility]::Visible}
@@ -549,7 +564,7 @@ function Update-Quota {
     if(!$q){
       $script:ui[$prefix+'Used'].Text='已用 —';$script:ui[$prefix+'Left'].Text='—'
       $script:ui[$prefix+'Reset'].Text=if($script:status -and $script:status.queryOk-ne $true){'额度读取异常'}else{'暂无额度数据'}
-      $script:ui[$prefix+'Bar'].Width=0;$script:ui[$prefix+'Left'].Foreground=[Windows.Media.BrushConverter]::new().ConvertFromString('#95889F');continue
+      $script:ui[$prefix+'Bar'].Width=0;$script:ui[$prefix+'Left'].Foreground=(Get-WidgetStaticBrush '#95889F');continue
     }
     $hasReset=$null-ne $q.resetsAt -and [double]$q.resetsAt-gt 0
     $expired=$hasReset -and [double]$q.resetsAt-le $now
@@ -560,9 +575,9 @@ function Update-Quota {
     if($hasReset){$script:ui[$prefix+'Reset'].ToolTip='本机时间 '+[DateTimeOffset]::FromUnixTimeSeconds([long]$q.resetsAt).ToLocalTime().ToString('yyyy-MM-dd HH:mm zzz')+' 重置 · '+(Reset-Label ([double]$q.resetsAt-$now))}
     $script:ui[$prefix+'Bar'].Width=if($expired){0}else{184*[double]$q.remaining/100}
     $color=if($expired){'#B3A7C0'}elseif([double]$q.used-ge 90){'#D77659'}elseif([double]$q.used-ge 75){'#D0A051'}else{'#9B86C1'}
-    $script:ui[$prefix+'Bar'].Background=[Windows.Media.BrushConverter]::new().ConvertFromString($color)
+    $script:ui[$prefix+'Bar'].Background=(Get-WidgetStaticBrush $color)
     $valueColor=if($expired){'#95889F'}elseif([double]$q.used-ge 90){'#B74839'}elseif([double]$q.used-ge 75){'#A06C1C'}else{'#745A98'}
-    $script:ui[$prefix+'Left'].Foreground=[Windows.Media.BrushConverter]::new().ConvertFromString($valueColor)
+    $script:ui[$prefix+'Left'].Foreground=(Get-WidgetStaticBrush $valueColor)
   }
   $script:ui.WeekRow.Margin=if($script:ui.ShortRow.Visibility-eq [Windows.Visibility]::Collapsed){[Windows.Thickness]::new(0,1,0,0)}else{[Windows.Thickness]::new(0,4,0,0)}
   $age=if($script:status.observedAt){$now-[Math]::Floor([double]$script:status.observedAt/1000)}else{0}
@@ -576,15 +591,17 @@ function Update-Quota {
     elseif($age-gt 180){$mins=[Math]::Floor($age/60);$script:ui.Status.Text="$mins 分钟前的额度 · 点击 ↻ 刷新";$dot='#C5A96F'}
     else{$script:ui.Status.Text="$at 更新 · 订阅额度"}
   }
-  $script:ui.LiveDot.Fill=[Windows.Media.BrushConverter]::new().ConvertFromString($dot)
+  $script:ui.LiveDot.Fill=(Get-WidgetStaticBrush $dot)
   $script:ui.Status.ToolTip=$script:ui.Status.Text+$(if($script:status.error){' · '+$script:status.error+' · 可点击刷新重试'}else{''})
   $headerState=if($script:status.refreshing){if($script:status.ok){'↻ 上次额度'}else{'↻ 正在读取'}}elseif(!$script:status){'正在读取'}elseif(!$script:status.ok){'⚠ 暂无法读取'}elseif($script:status.error){'⚠ 上次额度'}elseif($age-gt 180){'上次剩余额度'}else{'剩余额度'}
   $planTitle=([string]$script:status.planLabel).Trim()
   $script:ui.Header.Text=$headerState
   $script:ui.Header.ToolTip=if($script:status.planLabel){'当前套餐：'+$script:status.planLabel+' · 重置时间按本机时间显示'}else{'重置时间按本机时间显示'}
-  Update-BubbleTooltip
-  if($script:widgetColors){Update-WidgetColorScene}
+  Update-BubbleTooltip -Rows $quotaRows
+  if($script:widgetColors){Update-WidgetColorScene -Rows $quotaRows}
+  }finally{if($quotaWatch){$quotaWatch.Stop();$script:frameProbe.RecordWork('quota',$quotaWatch.Elapsed.TotalMilliseconds)}}
 }
+
 Set-Appearance;Set-BubbleState;Initialize-WidgetColors;Update-Quota
 if($CheckOnly){$hostWindow=[GptWidgetNative]::FindCodex();$foregroundWindow=[GptWidgetNative]::GetAncestor([GptWidgetNative]::GetForegroundWindow(),2);@{ok=$true;imageLoaded=$bitmap.PixelWidth-gt 0;host=$hostWindow.ToInt64();hostTitle=[GptWidgetNative]::Title($hostWindow);foreground=$foregroundWindow.ToInt64();foregroundTitle=[GptWidgetNative]::Title($foregroundWindow);dataDir=$script:dataDir}|ConvertTo-Json;return}
 if($Preview){
@@ -654,6 +671,8 @@ $pressDown={param($sender,$event)
   $sender.CaptureMouse()|Out-Null;Animate-Press $true;Play-WidgetPressSound;$event.Handled=$true
 }
 $pressMove={param($sender,$event)
+  $dragWatch=if($script:frameProbe -and $script:frameProbe.IsRunning){[Diagnostics.Stopwatch]::StartNew()}else{$null}
+  try{
   if(!$script:drag){return}
   $cursor=New-Object GptWidgetNative+Point;[GptWidgetNative]::GetCursorPos([ref]$cursor)|Out-Null
   $dx=$cursor.X-$script:drag.x;$dy=$cursor.Y-$script:drag.y
@@ -682,6 +701,7 @@ $pressMove={param($sender,$event)
     $script:offsetLeft=($x-$frame.Left)/$dpi;$script:anchor='free'
   }else{$script:desktopLeft=$x;$script:desktopTop=$y}
   $script:side=if($x+$w/2-lt ($frame.Left+$frame.Right)/2){'left'}else{'right'}
+  }finally{if($dragWatch){$dragWatch.Stop();$script:frameProbe.RecordWork('drag',$dragWatch.Elapsed.TotalMilliseconds)}}
 }
 $pressUp={param($sender,$event)
   if(!$script:drag){return}
@@ -712,14 +732,22 @@ function Ensure-QuotaWorker([long]$now){
   try{
     $health=Get-Content -LiteralPath (Join-Path $script:dataDir 'worker-status.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     $owner=Get-Content -LiteralPath (Join-Path $script:dataDir 'worker.lock') -Raw -Encoding UTF8 | ConvertFrom-Json
-    if($health.token -and $health.token-eq $owner.token -and $health.pid-eq $owner.pid -and $now-[long]$health.at-ge 0 -and $now-[long]$health.at-lt 5000){
-      $workerProcess=Get-Process -Id ([int]$health.pid) -ErrorAction Stop
-      try{$healthy=$workerProcess.Path-eq $script:config.nodePath -and $workerProcess.StartTime.ToUniversalTime()-le [DateTimeOffset]::FromUnixTimeMilliseconds([long]$health.startedAt).UtcDateTime}
-      finally{$workerProcess.Dispose()}
-      if($healthy -and $health.parentPid){$parentProcess=Get-Process -Id ([int]$health.parentPid) -ErrorAction Stop;$parentProcess.Dispose()}
+    if($health.token -and $health.token-eq $owner.token -and $health.pid-eq $owner.pid -and $now-[long]$health.at-ge 0 -and $now-[long]$health.at-lt 5000 -and (!$script:worker -or !$script:worker.HasExited)){
+      $sameCheck=$script:workerHealthCheck -and $script:workerHealthToken-eq $health.token -and $script:workerHealthPid-eq $health.pid -and $script:workerHealthStamp-eq $health.startedAt -and $script:workerHealthParent-eq $health.parentPid
+      if(!$sameCheck){
+        $script:workerHealthCheck=[GptWorkerHealthCheck]::new([int]$health.pid,[string]$script:config.nodePath,[long]$health.startedAt,[int]$health.parentPid)
+        $script:workerHealthToken=$health.token;$script:workerHealthPid=$health.pid;$script:workerHealthStamp=$health.startedAt;$script:workerHealthParent=$health.parentPid;$script:workerHealthStarted=$now
+        $script:lastWorkerProbe=$now-5000
+        return
+      }
+      if(!$script:workerHealthCheck.IsCompleted -and $now-$script:workerHealthStarted-lt 2000){$script:lastWorkerProbe=$now-5000;return}
+      $healthy=$script:workerHealthCheck.IsCompleted -and $script:workerHealthCheck.Healthy
+      if($healthy){$script:lastWorkerProbe=$script:workerHealthStarted}
+      $script:workerHealthCheck=$null
     }
   }catch{$healthy=$false}
   if($healthy){return}
+  $script:workerHealthCheck=$null
   if($script:worker){
     try{
       if(!$script:worker.HasExited){
@@ -737,6 +765,7 @@ function Ensure-QuotaWorker([long]$now){
   catch{[IO.File]::WriteAllText((Join-Path $script:dataDir 'worker-error.txt'),$_.Exception.Message,[Text.UTF8Encoding]::new($false))}
 }
 function Stop-WidgetRuntime {
+  if($script:frameProbe){try{Complete-WidgetFrameProbe -Force}catch{Write-Warning 'Performance report could not be saved during shutdown.'}}
   if($script:gravitySampler){$script:gravitySampler.Stop()}
   if($script:runtimeClosed){return};$script:runtimeClosed=$true
   try{if($script:hostFollower){$script:hostFollower.Dispose()}}catch{}
@@ -754,12 +783,16 @@ function Tick-Widget {
   if($script:gravityTimer -and $script:gravityTimer.IsEnabled){Sync-WidgetGravityPosition}
   if($script:updating){return}
   $script:updating=$true
+  $maintenanceWatch=if($script:frameProbe -and $script:frameProbe.IsRunning){[Diagnostics.Stopwatch]::StartNew()}else{$null}
   try{
   $now=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
   Tick-Scene $now
   Tick-WidgetUpdater $now
   if($now-$script:lastPresence-ge 1000 -and (Test-Path -LiteralPath (Join-Path $script:dataDir 'stop.flag'))){$script:window.Close();return}
+  $workerWatch=if($maintenanceWatch){[Diagnostics.Stopwatch]::StartNew()}else{$null}
   Ensure-QuotaWorker $now
+  if($workerWatch){$workerWatch.Stop();$script:frameProbe.RecordWork('worker',$workerWatch.Elapsed.TotalMilliseconds)}
+  $placementWatch=if($maintenanceWatch){[Diagnostics.Stopwatch]::StartNew()}else{$null}
   $foreground=[GptWidgetNative]::GetAncestor([GptWidgetNative]::GetForegroundWindow(),2)
   if($foreground-ne $script:lastForeground -or ($script:hostHandle-ne [IntPtr]::Zero -and ![GptWidgetNative]::IsWindow($script:hostHandle))){
     $script:lastForeground=$foreground
@@ -822,12 +855,19 @@ function Tick-Widget {
     [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr](-2),0,0,0,0,0x13)|Out-Null
     $script:window.Hide()
   }
+  if($placementWatch){$placementWatch.Stop();$script:frameProbe.RecordWork('placement',$placementWatch.Elapsed.TotalMilliseconds)}
   if($now-$script:lastPresence-ge 1000){
+    $persistenceWatch=if($maintenanceWatch){[Diagnostics.Stopwatch]::StartNew()}else{$null}
     Write-WidgetJson (Join-Path $script:dataDir 'presence.json') @{visible=[bool]$visible;at=$now;host=$script:hostHandle.ToInt64();widget=$script:widgetHandle.ToInt64();pid=$PID;followHost=$script:followHost;gravity=@{targetFps=$script:gravityTimer.TargetFps;renderFps=$script:gravityTimer.Fps;frameCount=$script:gravityTimer.FrameCount;maxStepMs=$script:gravityTimer.MaxStepMs;meanStepMs=$script:gravityTimer.MeanStepMs;enabled=$script:gravityEnabled;height=$script:gravity.Height;velocity=$script:gravity.Velocity;charge=$script:gravity.Charge;rebounds=$script:gravity.Rebounds;active=$script:gravity.Active};follow=@{ready=$script:hostFollower.Ready;events=$script:hostFollower.MovementEvents;mode='native-immediate';animationPaddingDip=14};scene=@{open=!$script:collapsed;mode=$script:bubbleMode;resetTimeMode=$script:resetTimeMode;startedAt=$script:sceneStartedAt;closesAt=$script:sceneDeadline;shortReset=$script:ui.ShortReset.Text;weekReset=$script:ui.WeekReset.Text}}
+    if($persistenceWatch){$persistenceWatch.Stop();$script:frameProbe.RecordWork('persistence',$persistenceWatch.Elapsed.TotalMilliseconds)}
     Update-Quota;$script:lastPresence=$now
     Read-DisplayRequest
   }
-  }finally{$script:updating=$false}
+  }finally{
+    if($maintenanceWatch){$maintenanceWatch.Stop();$script:frameProbe.RecordWork('maintenance',$maintenanceWatch.Elapsed.TotalMilliseconds)}
+    $script:updating=$false
+    if($script:frameProbe){$script:frameProbe.Paused=!$script:window.IsVisible;Complete-WidgetFrameProbe}
+  }
 }
 $script:winEventCallback=[GptWidgetNative+WinEventProc]{param($hook,$ev,$hwnd,$objectId,$childId,$threadId,$time)
   if($hwnd-eq $script:hostHandle -and $objectId-eq 0 -and $childId-eq 0){

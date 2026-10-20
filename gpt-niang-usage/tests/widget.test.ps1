@@ -8,7 +8,7 @@ $tokens=$null;$parseErrors=$null
 $source=[IO.File]::ReadAllText((Join-Path $appDir 'widget.ps1'),[Text.Encoding]::UTF8)
 $ast=[Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$parseErrors)
 if($parseErrors.Count){throw ($parseErrors|Out-String)}
-foreach($name in @('Set-Facing','Reset-Label','Format-ResetTime','Format-ResetDisplay','Get-QuotaWindowLabel','Get-QuotaRows','Set-ResetTimeMode','Restart-SceneTtl','Tick-Scene','Apply-Scene','Update-BubbleTooltip','Update-Quota')){
+foreach($name in @('Get-WidgetStaticBrush','Set-Facing','Reset-Label','Format-ResetTime','Format-ResetDisplay','Get-QuotaWindowLabel','Get-QuotaRows','Set-ResetTimeMode','Restart-SceneTtl','Tick-Scene','Apply-Scene','Update-BubbleTooltip','Update-Quota')){
   $definition=$ast.Find({param($node)$node-is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name-eq $name},$true)
   . ([ScriptBlock]::Create($definition.Extent.Text))
 }
@@ -336,6 +336,10 @@ try{
   $beforeBrush=$script:ui.ShortLeft.Foreground
   Update-Quota
   Assert-Equal ([object]::ReferenceEquals($beforeBrush,$script:ui.ShortLeft.Foreground)) $true 'Unchanged quota colours reuse their brush instead of invalidating the visual'
+  $script:actualQuotaRows=${function:Get-QuotaRows};$script:rowCalls=0
+  function Get-QuotaRows {$script:rowCalls++;& $script:actualQuotaRows}
+  Update-Quota
+  Assert-Equal $script:rowCalls 1 'A quota paint computes row layout only once and shares it with the tooltip'
   Assert-Equal $script:ui.ShortRow.Visibility Visible 'Loading is not treated as unsupported'
   Write-Output 'PASS: two reset phases, native midpoint timer, restart and close timing, local dates, five timezones, daylight saving, layout and quota edge cases'
 }finally{

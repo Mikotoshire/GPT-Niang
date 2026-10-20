@@ -1,5 +1,6 @@
 param([string]$TestRoot=$PSScriptRoot)
 $ErrorActionPreference='Stop'
+. (Join-Path (Split-Path $TestRoot -Parent) 'runtime/gravity.ps1')
 $script:assertions=0
 function Assert-Lifecycle([bool]$Condition,[string]$Message){
   if(!$Condition){throw $Message}
@@ -74,6 +75,12 @@ setInterval(heartbeat,100);
   $script:lastWorkerProbe=0
   Ensure-QuotaWorker ([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
   Assert-Lifecycle ($script:worker.Id-eq $firstPid) 'A healthy worker was duplicated.'
+  Assert-Lifecycle ($null-ne $script:workerHealthCheck) 'Healthy process inspection was not queued asynchronously.'
+  $deadline=[DateTime]::UtcNow.AddSeconds(3)
+  while(!$script:workerHealthCheck.IsCompleted -and [DateTime]::UtcNow-lt $deadline){Start-Sleep -Milliseconds 10}
+  $script:lastWorkerProbe=0
+  Ensure-QuotaWorker ([DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds())
+  Assert-Lifecycle ($null-eq $script:workerHealthCheck -and $script:worker.Id-eq $firstPid) 'Completed healthy inspection was not consumed without restarting the worker.'
 
   $script:worker.Kill()
   $null=$script:worker.WaitForExit(2000)
