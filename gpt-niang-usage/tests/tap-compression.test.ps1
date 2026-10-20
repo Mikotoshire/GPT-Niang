@@ -62,13 +62,14 @@ try{
 'PASS: production tuning bridge, persistence and startup validation'
 Add-Type -AssemblyName PresentationCore,WindowsBase
 . ([scriptblock]::Create((Import-TestFunction (Join-Path $AppDir 'widget.ps1') 'Animate-Press')))
-$script:ui=@{PressScale=[Windows.Media.ScaleTransform]::new(1,1)};$script:gravityEnabled=$false
+$script:ui=@{PressScale=[Windows.Media.ScaleTransform]::new(1,1);GravityScale=[Windows.Media.ScaleTransform]::new(1,1)};$script:gravityEnabled=$false
 function Animate-Value($target,$property,$value,$milliseconds,$delay,$ease){$target.SetValue($property,$value)}
 foreach($strength in @(0,1,3)){
   $script:tapCompression=$strength;Animate-Press $true
-  Assert ([Math]::Abs($script:ui.PressScale.ScaleX-(1+.05*$strength))-lt 1e-8 -and [Math]::Abs($script:ui.PressScale.ScaleY-(1-.12*$strength))-lt 1e-8) 'Tap slider also applies with gravity disabled'
+  Assert ([Math]::Abs($script:ui.PressScale.ScaleX*$script:ui.GravityScale.ScaleX-(1+.05*$strength))-lt 1e-8 -and [Math]::Abs($script:ui.PressScale.ScaleY*$script:ui.GravityScale.ScaleY-(1-.12*$strength))-lt 1e-8) 'Tap slider also applies with gravity disabled'
+  Assert ($script:ui.PressScale.ScaleX-le 1.05) 'Shared bubble pulse remains within its original horizontal budget'
   Animate-Press $false
-  Assert ($script:ui.PressScale.ScaleX-eq 1 -and $script:ui.PressScale.ScaleY-eq 1) 'Ordinary release returns to neutral'
+  Assert ($script:ui.PressScale.ScaleX-eq 1 -and $script:ui.PressScale.ScaleY-eq 1 -and $script:ui.GravityScale.ScaleX-eq 1 -and $script:ui.GravityScale.ScaleY-eq 1) 'Ordinary release returns to neutral'
 }
 $m=[GptGravityModel]::new();$m.SetTapCompression(3);$m.BeginPress()
 for($i=0;$i-lt 400;$i++){$m.Advance(1.0/240,900)}
