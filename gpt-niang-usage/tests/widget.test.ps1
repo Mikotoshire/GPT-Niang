@@ -220,14 +220,14 @@ try{
   Set-Snapshot @{ok=$true;queryOk=$false;observedAt=$now;error='查询超时';windows=@($week)}
   Assert-Equal $script:ui.ShortRow.Visibility Visible 'Failure never infers unsupported window'
   Assert-Equal $script:ui.WeekLeft.Text '90%' 'Same-account stale snapshot stays visible'
-  Assert-Equal $script:ui.Header.Text '上次剩余额度' 'Cached data is labelled as previous'
+  Assert-Equal $script:ui.Header.Text '⚠ 上次额度' 'Cached data is labelled as previous with a visible warning'
   Assert-QuotaLayout
 
   Set-Snapshot @{ok=$false;queryOk=$false;error='请重新登录';windows=@()}
   Assert-Equal $script:ui.ShortLeft.Text '—' 'Account change clears percentage'
   Assert-Equal $script:ui.ShortReset.Text '额度读取异常' 'Failure is distinct from absent window'
   Assert-Equal $script:ui.ShortRow.Visibility Visible 'Error short row visible'
-  Assert-Equal $script:ui.Status.Text '请重新登录' 'Error status retained'
+  Assert-Equal $script:ui.Status.Text '⚠ 请重新登录' 'Error status retained with a warning'
   Assert-QuotaLayout
   Save-Preview 'query-error'
 
@@ -304,10 +304,10 @@ try{
     Save-Preview ('header-'+$plan)
   }
   Set-Snapshot @{ok=$true;queryOk=$false;observedAt=$now;planLabel='Business';error='查询超时';windows=@($individual)}
-  Assert-Equal $script:ui.Header.Text '上次剩余额度' 'Cached heading retains stale indicator'
+  Assert-Equal $script:ui.Header.Text '⚠ 上次额度' 'Cached heading retains stale warning indicator'
   Assert-QuotaLayout;Save-Preview 'header-business-stale'
   Set-Snapshot @{ok=$false;queryOk=$false;planLabel='Business';windows=@()}
-  Assert-Equal $script:ui.Header.Text '暂无法读取' 'Read error retains the compact title'
+  Assert-Equal $script:ui.Header.Text '⚠ 暂无法读取' 'Read error retains the compact title and warning'
   Set-Snapshot @{ok=$true;queryOk=$true;observedAt=$now;planLabel=('FuturePlan'*10);windows=@($short)}
   Assert-QuotaLayout
   Assert-Equal $script:ui.Header.TextTrimming CharacterEllipsis 'Long future plan names stay within bubble'
