@@ -181,10 +181,33 @@ public sealed class GptFrameProbe : IDisposable {
     public void Dispose() { if (!IsRunning) return; IsRunning = false; CompositionTarget.Rendering -= Observe; clock.Stop(); }
 }
 
+// AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
+// A short, time-based tracking response keeps genuine fractional motion between
+// coalesced cursor targets. Pointer velocity sampling remains independent.
+public sealed class GptDragMotion {
+    public double X { get; private set; }
+    public double Y { get; private set; }
+    double targetX, targetY;
+    public GptDragMotion(double x, double y) { X=targetX=x; Y=targetY=y; }
+    public void SetTarget(double x, double y) {
+        if(double.IsNaN(x)||double.IsNaN(y)||double.IsInfinity(x)||double.IsInfinity(y))return;
+        targetX=x; targetY=y;
+    }
+    public void Advance(double seconds, double left, double top, double right, double bottom) {
+        double tx=Math.Max(left,Math.Min(right,targetX)),ty=Math.Max(top,Math.Min(bottom,targetY));
+        double blend=1-Math.Exp(-Math.Max(0,Math.Min(.1,seconds))/.012);
+        X=Math.Max(left,Math.Min(right,X+(tx-X)*blend));
+        Y=Math.Max(top,Math.Min(bottom,Y+(ty-Y)*blend));
+        if(Math.Abs(tx-X)<.01)X=tx;
+        if(Math.Abs(ty-Y)<.01)Y=ty;
+    }
+}
+
 // Configuration is refreshed by PowerShell at input/layout boundaries, never per frame.
 public sealed class GptGravityScene {
     public GptGravityModel Model;
     public TranslateTransform Offset;
+    public GptDragMotion Drag;
     public ScaleTransform Scale;
     public IntPtr Widget, Host;
     public bool Follow, Free;
@@ -213,7 +236,7 @@ public sealed class GptGravityRenderLoop {
     public bool CanObserveFrame { get { return IsEnabled && !rendering; } }
     public GptGravityScene Scene { get; set; }
     public event EventHandler Tick;
-    public int TargetFps { get { return 120; } }
+    public int TargetFps { get { return 240; } }
     public long FrameCount { get; private set; }
     public long SlowFrames { get; private set; }
     public double Fps { get { double span=(last-first).TotalSeconds;return span>0?(FrameCount-1)/span:0; } }
@@ -257,7 +280,11 @@ public sealed class GptGravityRenderLoop {
         double ceiling=Math.Max(0,(s.FrameBottom-s.FrameTop-s.Height+s.Padding)/s.Unit);
         double width=Math.Max(0,(s.FrameRight-s.FrameLeft-s.Width)/s.Unit);
         long started=Stopwatch.GetTimestamp();
-        s.Model.Advance(seconds,ceiling,width);
+        if(s.Drag!=null){
+            s.Drag.Advance(seconds,s.FrameLeft,s.FrameTop,Math.Max(s.FrameLeft,s.FrameRight-s.Width),Math.Max(s.FrameTop,s.FrameBottom-s.Height+s.Padding));
+            s.Model.SetHorizontalPosition((s.Drag.X-s.FrameLeft)/s.Unit);
+            s.Model.DragTo((s.FrameBottom-s.Height+s.Padding-s.Drag.Y)/s.Unit);
+        }else s.Model.Advance(seconds,ceiling,width);
         physicsTicks+=Stopwatch.GetTimestamp()-started;started=Stopwatch.GetTimestamp();
         if(s.Scale.ScaleX!=s.Model.ScaleX)s.Scale.ScaleX=s.Model.ScaleX;
         if(s.Scale.ScaleY!=s.Model.ScaleY)s.Scale.ScaleY=s.Model.ScaleY;
@@ -293,7 +320,7 @@ public sealed class GptGravityRenderLoop {
         if(moved)PositionUpdates++;
         s.X=x;s.Y=y;s.Bottom=bottom;s.PoseLeft=left;s.PoseRight=right;s.HasPose=true;
         placementTicks+=Stopwatch.GetTimestamp()-started;
-        return s.Model.Active;
+        return s.Drag!=null || s.Model.Active;
     }
     void Render(object sender,EventArgs args) {
         if(rendering)return;
@@ -307,9 +334,11 @@ public sealed class GptGravityRenderLoop {
         // placement can block until composition and compress subsequent arrivals.
         // Physics still advances by real elapsed time below.
         double presentation=frame==null?now:frame.RenderingTime.TotalSeconds;
-        // A two-frame token bucket caps sustained work at 120 Hz while retaining
+        // A two-frame token bucket caps sustained work at 240 Hz while retaining
         // normal 60-Hz long/short presentation jitter after a blocked native move.
         // A hard minimum gap would discard valid 8/25-ms pairs averaging 60 Hz.
+        // The former 120-Hz budget repeatedly skipped a fast WPF callback, then
+        // suffered producer backoff. Keep the bounded budget above that cadence.
         if(Scene!=null){
             if(double.IsNaN(cadenceAt) || presentation<cadenceAt)cadenceTokens=2;
             else cadenceTokens=Math.Min(2,cadenceTokens+(presentation-cadenceAt)*TargetFps);

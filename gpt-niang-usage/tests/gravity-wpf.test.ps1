@@ -76,7 +76,24 @@ try {
   Set-WidgetGravityMode $true
   if($script:savedSettings.gravityEnabled-ne $true){throw 'Enabled gravity preference was not serialized.'}
   Begin-WidgetGravityDrag
-  if($script:gravityTimer.IsEnabled -or !$script:gravity.Dragging){throw 'Drag must suspend physics until release.'}
+  if(!$script:gravityTimer.IsEnabled -or !$script:gravity.Dragging -or !$script:gravityTimer.Scene.Drag){throw 'Drag must render cursor tracking while gravity integration remains suspended.'}; if($script:gravity.Velocity-ne 0){throw 'Dragging must not acquire gravitational velocity.'}
+  $moveNode=$ast.Find({param($n)$n-is [Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text-eq '$pressMove'},$true)
+  $moveText=$moveNode.Right.Extent.Text.Trim();$moveText=$moveText.Substring(1,$moveText.Length-2)
+  $moveText=$moveText.Replace('[GptWidgetNative]::GetCursorPos([ref]$cursor)|Out-Null','$cursor.X=[int](120+10*$script:testDpi);$cursor.Y=[int](140+10*$script:testDpi)')
+  $moveHandler=[scriptblock]::Create($moveText)
+  $script:drag=@{x=0;y=0;left=300;top=300;moved=$true}
+  foreach($testScale in @(1,1.5,2)){
+    $script:testDpi=$testScale;$script:gravityTimer.Start()
+    & $moveHandler $null ([pscustomobject]@{Handled=$false})
+    $script:gravityTimer.Stop()
+    if(!$script:gravityTimer.Scene.Drag){throw 'DPI refresh discarded the coalesced drag target.'}
+    $step=$script:gravityTimer.GetType().GetMethod('Step',[Reflection.BindingFlags]'NonPublic,Instance')
+    for($i=0;$i-lt 30;$i++){$null=$step.Invoke($script:gravityTimer,@(1.0/120))}
+    $size=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$size)|Out-Null
+    if([Math]::Abs(($size.Right-$size.Left)-378*$testScale)-gt 1){throw 'Managed drag resized the character incorrectly across DPI.'}
+    if($script:gravity.Velocity-ne 0 -or !$script:gravity.Dragging){throw 'DPI drag integrated gravity before release.'}
+  }
+  $script:drag=$null;$script:testDpi=1;$null=Set-WidgetPixelSize 1
   Release-WidgetGravityDrop
   if($script:gravity.Dragging){throw 'Release must leave drag state.'}
   # Native pointer sampling is tested deterministically in motion-tuning.test.ps1.

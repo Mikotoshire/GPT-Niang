@@ -98,6 +98,9 @@ function Set-WidgetGravityScene {
     $rect=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
     $script:gravity.SetHorizontalPosition([Math]::Max(0,($rect.Left-$frame.Left)/$geometry.Unit))
   }
+  if($script:drag -and $script:gravity.Dragging -and $script:gravityTimer.Scene -and $script:gravityTimer.Scene.Drag){
+    $scene.Drag=$script:gravityTimer.Scene.Drag;$scene.Free=$true;$scene.Move=$null
+  }
   $script:gravityTimer.Scene=$scene
   return $true
 }
@@ -107,6 +110,7 @@ function Sync-WidgetGravityPosition {
   $script:offsetBottom=$script:gravity.Height*$script:displayScale
   if($scene.Free){$script:offsetLeft=$scene.PoseLeft;$script:offsetRight=$scene.PoseRight;$script:anchor='free'}
   if(!$script:followHost){$script:desktopLeft=$scene.X;$script:desktopTop=$scene.Y}
+  if($scene.Drag){$script:side=if($scene.X+$scene.Width/2-lt ($scene.FrameLeft+$scene.FrameRight)/2){'left'}else{'right'}}
   $script:lastPosition=$null
 }
 function Set-WidgetGravityPose {
@@ -141,6 +145,12 @@ function Begin-WidgetGravityDrag {
   $script:gravityInertia=$false
   $script:gravitySampler.Start()
   $script:gravityTimer.Stop();$script:gravity.BeginDrag();Set-WidgetGravityPose
+  if(Set-WidgetGravityScene){
+    $rect=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
+    $script:gravityTimer.Scene.Drag=[GptDragMotion]::new($rect.Left,$rect.Top)
+    $script:gravityTimer.Scene.Free=$true;$script:gravityTimer.Scene.Move=$null
+    $script:gravityTimer.Start()
+  }
 }
 function Set-WidgetPhysicsTuning {
   if($null-eq $script:gravityStrength){$script:gravityStrength=1.4}
@@ -164,6 +174,7 @@ function Set-WidgetPhysicsTuning {
   Save-Settings
 }
 function Release-WidgetGravityDrop([switch]$Cancel) {
+  $script:gravityTimer.Stop()
   $frame=Get-WidgetPlacementFrame;$dpi=Get-WidgetPlacementDpi
   $rect=[GptWidgetNative+Rect]::new()
   [GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null

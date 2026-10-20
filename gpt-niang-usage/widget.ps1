@@ -701,6 +701,15 @@ $pressMove={param($sender,$event)
   $frame=Get-WidgetPlacementFrame;$dpi=Get-WidgetPlacementDpi
   if($dpi-le 0){$dpi=1}
   if(!(Test-WidgetPlacementFrame $frame $dpi)){return}
+  if($script:gravityEnabled -and $script:gravityTimer.IsEnabled -and $script:gravityTimer.Scene -and $script:gravityTimer.Scene.Drag){
+    if([Math]::Abs($script:gravityTimer.Scene.Dpi-$dpi)-gt .001){$null=Set-WidgetPixelSize $dpi;$null=Set-WidgetGravityScene}
+    $scene=$script:gravityTimer.Scene
+    $scene.FrameLeft=$frame.Left;$scene.FrameTop=$frame.Top;$scene.FrameRight=$frame.Right;$scene.FrameBottom=$frame.Bottom
+    $scene.Drag.SetTarget($script:drag.left+$dx,$script:drag.top+$dy)
+    $script:drag.lastCursorX=$cursor.X;$script:drag.lastCursorY=$cursor.Y
+    $script:lastPosition=$null
+    return
+  }
   $null=Set-WidgetPixelSize $dpi
   $w=[int]($script:designWidth*$script:displayScale*$dpi);$h=[int]($script:designHeight*$script:displayScale*$dpi)
   $x=[int][Math]::Max($frame.Left,[Math]::Min($frame.Right-$w,$script:drag.left+$dx))

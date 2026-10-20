@@ -1,4 +1,4 @@
-param([string]$AppDir=(Split-Path $PSScriptRoot -Parent),[ValidateRange(3,30)][int]$SecondsPerPhase=6,[string]$ReportFile,[switch]$Hidden,[switch]$RequireSmooth60)
+param([string]$AppDir=(Split-Path $PSScriptRoot -Parent),[ValidateRange(3,30)][int]$SecondsPerPhase=6,[string]$ReportFile,[switch]$Hidden,[switch]$RequireSmooth60,[switch]$DefaultProfile,[switch]$HostMode)
 # AI-generated diagnostic fixture; insufficiently validated. Uses fictional data only.
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
@@ -31,7 +31,7 @@ function Get-WidgetPlacementFrame {return [pscustomobject]@{Left=100;Top=100;Rig
 function Get-WidgetPlacementDpi {return $script:testDpi}
 $script:testDpi=1
 Initialize-WidgetGravity
-if($script:gravityTimer.TargetFps-ne 120){throw 'Animation scheduling must allow 120 FPS'}
+if($script:gravityTimer.TargetFps-lt 120){throw 'Animation scheduling must allow 120 FPS'}
 $script:window.Opacity=if($Hidden){0}else{1};$script:window.ShowActivated=$false;$script:window.Show()
 $script:widgetHandle=([Windows.Interop.WindowInteropHelper]::new($script:window)).Handle
 $null=Set-WidgetPixelSize $script:testDpi
@@ -59,6 +59,25 @@ $script:soundOn=$false;$script:soundVolume=.5;$script:bubbleTapAdvance=$false;$s
 $script:groundFriction=1;$script:gravityStrength=1.6;$script:elasticStrength=1;$script:squishStrength=1;$script:tapCompression=1;$script:animationSpeed=1;$script:reboundStrength=75;$script:compressionCurve=1.5
 $script:colorMode='original';$script:colorPaused=$false;$script:colorChance=0;$script:colorTextChance=0
 $script:offsetLeft=50;$script:offsetRight=50;$script:statusStamp=0;$script:status=$null
+if($HostMode){
+  . (Join-Path $AppDir 'runtime/host-follow.ps1')
+  Add-Type @'
+using System;using System.Runtime.InteropServices;
+public static class FrameStressHost {
+ [DllImport("user32.dll",CharSet=CharSet.Unicode)]public static extern IntPtr CreateWindowEx(uint ex,string cls,string title,uint style,int x,int y,int w,int h,IntPtr parent,IntPtr menu,IntPtr instance,IntPtr param);
+ [DllImport("user32.dll")]public static extern bool DestroyWindow(IntPtr h);
+}
+'@
+  $script:hostHandle=[FrameStressHost]::CreateWindowEx(0x08000088,'STATIC','Frame stress host',2415919104,$area.Left+40,$area.Top+40,[Math]::Min(1000,$area.Width-80),[Math]::Min(850,$area.Height-80),[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero,[IntPtr]::Zero)
+  if($script:hostHandle-eq [IntPtr]::Zero){throw 'Native fixture host creation failed'}
+  $script:followHost=$true;$script:testDpi=[GptWidgetNative]::GetDpiForWindow($script:hostHandle)/96.0
+  function Get-WidgetPlacementFrame {return [GptWidgetNative]::Frame($script:hostHandle)}
+  $null=Set-WidgetPixelSize $script:testDpi
+  $hostFrame=Get-WidgetPlacementFrame;$geometry=Get-WidgetGravityGeometry
+  $script:hostFollower=[GptWidgetHostFollower]::new($script:widgetHandle)
+  $script:hostFollower.Configure($script:hostHandle,$hostFrame.Left,$hostFrame.Top,$hostFrame.Right,$hostFrame.Bottom,$geometry.Width,$geometry.Height,50,50,0,'free',$true)
+  [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr](-1),0,0,0,0,0x13)|Out-Null
+}
 $now=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 $fake=@{ok=$true;queryOk=$true;observedAt=$now;windows=@(@{minutes=300;used=25;remaining=75;resetsAt=[Math]::Floor($now/1000)+3600},@{minutes=10080;used=10;remaining=90;resetsAt=[Math]::Floor($now/1000)+7200})}
 [IO.File]::WriteAllText((Join-Path $script:dataDir 'status.json'),($fake|ConvertTo-Json -Depth 6))
@@ -75,9 +94,9 @@ try{
     $script:stressPhase=$phase;$script:stressStep=0;$script:context.IsOpen=$false
     $script:gravityTimer.Stop();$script:gravitySampler.Stop();$script:gravity.Reset();$script:drag=$null
     $script:gravityEnabled=$true;$script:gravityInertia=$true
-    $script:gravity.SetTuning(.5,1);$script:gravity.SetGroundFriction(1)
+    if($DefaultProfile){$script:gravity.SetTuning([GptGravityModel]::DefaultGravityMultiplier,[GptGravityModel]::DefaultElasticity);$script:gravity.SetGroundFriction([GptGravityModel]::DefaultGroundFrictionMultiplier)}else{$script:gravity.SetTuning(.5,1);$script:gravity.SetGroundFriction(1)}
     $script:gravity.SetHorizontalPosition(100);$script:gravity.FlingFrom(300,180,0)
-    if($phase-eq 'drag'){$script:drag=@{x=0;y=0;left=$area.Left+50;top=$area.Top+50;moved=$true};$script:gravity.BeginDrag()}
+    if($phase-eq 'drag'){$script:drag=@{x=0;y=0;left=$area.Left+50;top=$area.Top+50;moved=$true};$script:gravity.BeginDrag();Begin-WidgetGravityDrag}
     else{Start-WidgetGravityTimer}
     if($phase-eq 'menu'){Open-WidgetMenu}
     $script:frameProbe=[GptFrameProbe]::new($SecondsPerPhase+2)
@@ -103,9 +122,9 @@ try{
     $driver.Stop();$finish.Stop();$script:frameProbe.Dispose();$script:gravityTimer.Stop()
     $p=$script:frameProbe
     $smooth=$p.Delivery.Count-ge 100 -and $p.Delivery.MeanMs-le 17.5 -and $p.Delivery.P95Ms-le 20 -and $p.Delivery.Over50Ms-eq 0
-    $result=[pscustomobject]@{phase=$phase;seconds=$SecondsPerPhase;smooth60Candidate=$smooth;presentation=$p.Presentation;delivery=$p.Delivery;workMaxMs=$p.MaxWorkMs;stalls=$p.Stalls;work=$p.WorkEvents;physicsMeanMs=$script:gravityTimer.MeanPhysicsMs;placementMeanMs=$script:gravityTimer.MeanPlacementMs}
+    $result=[pscustomobject]@{phase=$phase;seconds=$SecondsPerPhase;smooth60Candidate=$smooth;presentation=$p.Presentation;delivery=$p.Delivery;workMaxMs=$p.MaxWorkMs;stalls=$p.Stalls;work=$p.WorkEvents;renderFps=$script:gravityTimer.Fps;renderFrames=$script:gravityTimer.FrameCount;nativeMoves=$script:gravityTimer.PositionUpdates;hostMode=[bool]$HostMode;defaultProfile=[bool]$DefaultProfile;physicsMeanMs=$script:gravityTimer.MeanPhysicsMs;placementMeanMs=$script:gravityTimer.MeanPlacementMs}
     $reports+=,$result
-    Write-Output ($phase+': intervals='+$p.Delivery.Count+' p95='+$p.Delivery.P95Ms+'ms p99='+$p.Delivery.P99Ms+'ms worst='+[Math]::Round($p.Delivery.MaxMs,2)+'ms over25='+$p.Delivery.Over25Ms+' over50='+$p.Delivery.Over50Ms+' workMax='+[Math]::Round($p.MaxWorkMs,2)+'ms')
+    Write-Output ($phase+': intervals='+$p.Delivery.Count+' p95='+$p.Delivery.P95Ms+'ms p99='+$p.Delivery.P99Ms+'ms worst='+[Math]::Round($p.Delivery.MaxMs,2)+'ms renderHz='+[Math]::Round($script:gravityTimer.Fps,1)+' nativeMoves='+$script:gravityTimer.PositionUpdates+' over25='+$p.Delivery.Over25Ms+' over50='+$p.Delivery.Over50Ms+' workMax='+[Math]::Round($p.MaxWorkMs,2)+'ms')
     if($p.Delivery.Count-lt 10){throw 'Insufficient frame observations; cannot claim performance acceptance'}
   }
   if($ReportFile){[IO.File]::WriteAllText([IO.Path]::GetFullPath($ReportFile),($reports|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))}
@@ -113,6 +132,7 @@ try{
 }finally{
   if($driver){$driver.Stop()};if($finish){$finish.Stop()};if($script:frameProbe){$script:frameProbe.Dispose()}
   $script:gravityTimer.Stop();$script:gravitySampler.Stop();$script:context.IsOpen=$false;$script:window.Close()
+  if($HostMode){$script:hostFollower.Dispose();[FrameStressHost]::DestroyWindow($script:hostHandle)|Out-Null}
   $temporary=[IO.Path]::GetFullPath($script:dataDir)
   if(!$temporary.StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()),[StringComparison]::OrdinalIgnoreCase)){throw 'Unsafe temporary cleanup path'}
   Remove-Item -LiteralPath $temporary -Recurse -Force
