@@ -24,10 +24,10 @@ export function createRefreshQueue(run,{now=Date.now,onError=()=>{}}={}) {
 
 export function mergeUsageSnapshot(previous,next,now=Date.now()) {
   if(next.queryOk && previous?.ok && next.accountKey && next.accountKey===previous.accountKey && next.observedAt<previous.observedAt)return previous;
-  if(!next.ok && !next.clearPrevious && previous?.ok && next.accountKey && next.accountKey===previous.accountKey) {
-    return {...previous,queryOk:false,error:next.error,checkedAt:now};
+  if(!next.queryOk && !next.clearPrevious && previous?.ok && next.accountKey && next.accountKey===previous.accountKey) {
+    return {...previous,queryOk:false,refreshing:false,error:next.error,errorCode:next.errorCode,checkedAt:now};
   }
-  return {...next,checkedAt:now};
+  return {...next,refreshing:false,checkedAt:now};
 }
 
 // The flag's contents are a request token, not just a filesystem timestamp.

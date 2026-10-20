@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export const MAX_LOG_BYTES=256*1024;
-const events=new Set(['worker_start','query_start','query','snapshot_write_failed']);
+const events=new Set(['worker_start','query_start','query','query_retry','snapshot_write_failed']);
 const stages=new Set(['initialize','account','rate_limits']);
 const codes=new Set(['SPAWN_FAILED','SERVICE_EXIT','CONNECTION_CLOSED','CONNECTION_WRITE_FAILED','INITIALIZE_FAILED','ACCOUNT_READ_FAILED','ACCOUNT_STATE_WRITE_FAILED','OK','TIMEOUT','QUERY_FAILED','INVALID_LIMITS','INVALID_WINDOWS','NO_WINDOWS','RATE_LIMITS_READ_FAILED','AUTH_MODE_UNSUPPORTED','ENOENT','EACCES','EPERM','IO']);
 // Strict allowlist: never serialize account objects, RPC messages, paths or errors.

@@ -1,7 +1,7 @@
 import {appendDiagnostic} from './diagnostics.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
-import {readUsage,atomicJson,resolveCodexExecutable} from './usage.mjs';
+import {readUsageWithRetry,atomicJson,resolveCodexExecutable} from './usage.mjs';
 import {createRefreshQueue,mergeUsageSnapshot,readRefreshRequest} from './refresh-queue.mjs';
 import {acquireWorkerLock,processAlive,readJson} from './worker-state.mjs';
 import {readPendingRequests,completeRequests,cleanRefreshResults,widgetUpdating,updatingSnapshot} from './refresh-client.mjs';
@@ -43,12 +43,16 @@ refresh=createRefreshQueue(async()=>{
   for(const request of batch)activeRequestIds.add(request.id);
   try {
     appendDiagnostic(config.dataDir,{event:'query_start'});
-    const next=await readUsage(resolveCodexExecutable(config.codexPath),{onDiagnostic:entry=>{
+    save({...status,refreshing:true,error:null,errorCode:null,refreshStartedAt:Date.now()});
+    const next=await readUsageWithRetry(resolveCodexExecutable(config.codexPath),{onRetry:entry=>appendDiagnostic(config.dataDir,entry),onDiagnostic:entry=>{
       appendDiagnostic(config.dataDir,{...entry,recovered:entry.ok&&lastQueryFailed});lastQueryFailed=!entry.ok;
     },onAccount:accountKey=>{
-      if(status?.accountKey!==accountKey || !accountKey)save({ok:false,queryOk:false,accountKey,error:'正在读取当前账户额度…',windows:[],checkedAt:Date.now()});
+      if(status?.accountKey!==accountKey || !accountKey)save({ok:false,queryOk:false,refreshing:true,refreshStartedAt:status?.refreshStartedAt??Date.now(),accountKey,error:'正在读取当前账户额度…',windows:[],checkedAt:Date.now()});
     }});
-    save(mergeUsageSnapshot(status,next));
+    // Identity is unknown on a transient pre-account failure. Keep only this
+    // worker's already verified data, explicitly marked as an old snapshot.
+    const unknownTransient=!next.accountKey && ['TIMEOUT','ACCOUNT_READ_FAILED','SERVICE_EXIT','CONNECTION_CLOSED','CONNECTION_WRITE_FAILED','INITIALIZE_FAILED'].includes(next.errorCode);
+    save(mergeUsageSnapshot(status,unknownTransient&&status?.ok?{...next,accountKey:status.accountKey,clearPrevious:false}:next));
     ipc.complete(pipeBatch,status);
     completeRequests(config.dataDir,batch,status);
     lastActivity=Date.now();
@@ -60,6 +64,7 @@ refresh=createRefreshQueue(async()=>{
   // A temporary filesystem failure must not stop the quota worker.
   const code=typeof error?.code==='string'?error.code:'IO';
   appendDiagnostic(config.dataDir,{event:'snapshot_write_failed',code});
+  try{save({...status,refreshing:false,queryOk:false,error:'无法保存刷新结果，请稍后重试',errorCode:'IO'});}catch{}
   console.error('Quota snapshot could not be saved; next refresh will retry ('+code+').');
 }});
 

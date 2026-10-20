@@ -1,4 +1,4 @@
-param([string]$TestRoot=$PSScriptRoot)
+﻿param([string]$TestRoot=$PSScriptRoot)
 # AI-generated maintenance test; insufficiently validated. See AI-NOTICE.md.
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
@@ -27,8 +27,10 @@ try{
   $fixture.refreshing=$true;$fixture.refreshStartedAt=$now;Write-Fixture $fixture
   Request-Refresh
   if(Test-Path $flag){throw 'Clicks must not duplicate an active query'}
+  if($script:ui.Header.Text-notmatch ([char]0x21BB)){throw 'Visible fetching indicator missing'}
   if($script:ui.Status.Text-notmatch '正在获取新数据'){throw 'Fetching indicator missing'}
   $fixture.refreshing=$false;$fixture.queryOk=$false;$fixture.error='fictional failure';Write-Fixture $fixture
+  if($script:ui.Header.Text-notmatch ([char]0x26A0)){throw 'Visible failure indicator missing'}
   if($script:ui.Status.Text-notmatch '⚠'){throw 'Failure warning missing'}
   Request-Refresh -IfNeeded
   if(!(Test-Path $flag)){throw 'Next click must permit a bounded retry after failure'}

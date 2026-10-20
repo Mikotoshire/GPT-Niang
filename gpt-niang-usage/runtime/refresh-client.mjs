@@ -22,7 +22,7 @@ export async function requestRefresh(config,configPath,{timeoutMs=45000,startWor
   if(widgetUpdating(config.dataDir))return updatingSnapshot();
   const id=randomUUID(),at=Date.now();
   // Reserve time for the file queue if a connected pipe stops answering.
-  const pipeTimeoutMs=Math.min(30000,Math.floor(timeoutMs*2/3));
+  const pipeTimeoutMs=Math.min(40000,Math.floor(timeoutMs*0.9));
   const piped=await requestPipeRefresh(config.dataDir,{timeoutMs:pipeTimeoutMs});
   if(widgetUpdating(config.dataDir))return updatingSnapshot();
   if(piped)return piped;

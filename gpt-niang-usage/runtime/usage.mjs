@@ -169,6 +169,25 @@ export function readUsage(cli, {timeoutMs=18000,spawnProcess=spawn,onAccount=()=
   });
 }
 
+// AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
+// Each attempt opens a fresh read-only app-server connection. Never retry login
+// mode, missing executables or malformed quota data as if they were networking.
+export async function readUsageWithRetry(cli,{read=readUsage,now=Date.now,sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms)),onRetry=()=>{},...options}={}) {
+  const deadline=now()+38000;
+  const transient=new Set(['TIMEOUT','ACCOUNT_READ_FAILED','RATE_LIMITS_READ_FAILED','SERVICE_EXIT','CONNECTION_CLOSED','CONNECTION_WRITE_FAILED','INITIALIZE_FAILED']);
+  let result;
+  for(let attempt=0;attempt<2;attempt++){
+    const timeoutMs=Math.min(24000,deadline-now());
+    if(timeoutMs<=0)break;
+    result=await read(cli,{...options,timeoutMs});
+    if(result.queryOk || !transient.has(result.errorCode) || attempt===1)break;
+    if(deadline-now()<=750)break;
+    onRetry({event:'query_retry',code:result.errorCode});
+    await sleep(750);
+  }
+  return {...result,queryOk:result?.queryOk===true};
+}
+
 export function atomicJson(file,data) {
   fs.mkdirSync(path.dirname(file),{recursive:true});
   const tmp=file+'.'+process.pid+'.'+randomUUID()+'.tmp';

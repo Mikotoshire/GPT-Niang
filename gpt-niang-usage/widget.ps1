@@ -369,7 +369,7 @@ function Click-Character {
   else{Restart-SceneTtl}
 }
 function Show-Quota {
-  if(!$script:collapsed){if($script:bubbleMode-ne 'quota'){Switch-Scene 'quota'}else{Restart-SceneTtl};return}
+  if(!$script:collapsed){if($script:bubbleMode-ne 'quota'){Switch-Scene 'quota'}else{Restart-SceneTtl};Request-Refresh -IfNeeded;return}
   $script:bubbleEpoch++;$script:collapsed=$false
   $script:bubbleMode='quota';Apply-Scene
   if($script:sceneTimer){$script:sceneTimer.Stop()}
@@ -386,7 +386,7 @@ function Show-Quota {
   Set-AnimatedValue $script:ui.SceneText ([Windows.UIElement]::OpacityProperty) 0
   Animate-Value $script:ui.SceneText ([Windows.UIElement]::OpacityProperty) 1 160 360
   $script:ui.Bubble.IsHitTestVisible=$true
-  Restart-SceneTtl 520;Request-Refresh;Save-Settings
+  Restart-SceneTtl 520;Request-Refresh -IfNeeded;Save-Settings
 }
 function Hide-Quota {
   if($script:collapsed){return}
@@ -423,7 +423,17 @@ function Animate-Press([bool]$down) {
   Animate-Value $script:ui.PressScale ([Windows.Media.ScaleTransform]::ScaleXProperty) $x 220 0 $true
   Animate-Value $script:ui.PressScale ([Windows.Media.ScaleTransform]::ScaleYProperty) $y 220 0 $true
 }
-function Request-Refresh {[IO.File]::WriteAllText((Join-Path $script:dataDir 'refresh.flag'),([DateTime]::UtcNow.ToString('o')+' '+[Guid]::NewGuid().ToString('N')))}
+function Request-Refresh([switch]$IfNeeded) {
+  # AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
+  $now=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+  $current=$null
+  try{$current=Get-Content -LiteralPath (Join-Path $script:dataDir 'status.json') -Raw -Encoding UTF8|ConvertFrom-Json}catch{}
+  if($current.refreshing -and $current.refreshStartedAt -and $now-[double]$current.refreshStartedAt-lt 40000){return}
+  if($IfNeeded -and $current.ok -and $current.queryOk -and $current.observedAt -and $now-[double]$current.observedAt-ge 0 -and $now-[double]$current.observedAt-lt 60000){return}
+  $flag=Join-Path $script:dataDir 'refresh.flag'
+  if((Test-Path -LiteralPath $flag) -and ([DateTime]::UtcNow-[IO.File]::GetLastWriteTimeUtc($flag)).TotalSeconds-lt 2){return}
+  [IO.File]::WriteAllText($flag,([DateTime]::UtcNow.ToString('o')+' '+[Guid]::NewGuid().ToString('N')))
+}
 function Exit-WidgetForSession {
   if($script:followHost){Set-WidgetSupervisorPause -AppDir $script:appDir -HostHandle $script:hostHandle.ToInt64() -HostPid ([GptWidgetNative]::ProcessId($script:hostHandle))}
   else{Write-WidgetSupervisorJson (Join-Path $script:dataDir 'supervisor-pause.json') @{desktop=$true;at=[DateTime]::UtcNow.ToString('o')}}
@@ -533,17 +543,18 @@ function Update-Quota {
   $script:ui.WeekRow.Margin=if($script:ui.ShortRow.Visibility-eq [Windows.Visibility]::Collapsed){[Windows.Thickness]::new(0,1,0,0)}else{[Windows.Thickness]::new(0,4,0,0)}
   $age=if($script:status.observedAt){$now-[Math]::Floor([double]$script:status.observedAt/1000)}else{0}
   $dot='#9B86C1'
-  if(!$script:status){$script:ui.Status.Text='正在读取订阅额度…';$dot='#C5A96F'}
-  elseif(!$script:status.ok){$script:ui.Status.Text=$script:status.error;$dot='#C5A96F'}
+  if($script:status.refreshing){$script:ui.Status.Text=if($script:status.ok){'↻ 正在获取新数据 · 显示上次额度'}else{'↻ 正在获取新数据…'};$dot='#C5A96F'}
+  elseif(!$script:status){$script:ui.Status.Text='正在读取订阅额度…';$dot='#C5A96F'}
+  elseif(!$script:status.ok){$script:ui.Status.Text='⚠ '+$script:status.error;$dot='#C5A96F'}
   else{
     $at=[DateTimeOffset]::FromUnixTimeMilliseconds([long]$script:status.observedAt).ToLocalTime().ToString('HH:mm:ss')
-    if($script:status.error){$script:ui.Status.Text="刷新未成功 · 上次 $at";$dot='#C5A96F'}
+    if($script:status.error){$script:ui.Status.Text="⚠ 获取失败 · 显示上次 $at 的额度";$dot='#C5A96F'}
     elseif($age-gt 180){$mins=[Math]::Floor($age/60);$script:ui.Status.Text="$mins 分钟前的额度 · 点击 ↻ 刷新";$dot='#C5A96F'}
-    else{$script:ui.Status.Text="$at 更新 · 实时订阅额度"}
+    else{$script:ui.Status.Text="$at 更新 · 订阅额度"}
   }
   $script:ui.LiveDot.Fill=[Windows.Media.BrushConverter]::new().ConvertFromString($dot)
-  $script:ui.Status.ToolTip=$script:ui.Status.Text
-  $headerState=if(!$script:status){'正在读取'}elseif(!$script:status.ok){'暂无法读取'}elseif($script:status.error -or $age-gt 180){'上次剩余额度'}else{'剩余额度'}
+  $script:ui.Status.ToolTip=$script:ui.Status.Text+$(if($script:status.error){' · '+$script:status.error+' · 可点击刷新重试'}else{''})
+  $headerState=if($script:status.refreshing){if($script:status.ok){'↻ 上次额度'}else{'↻ 正在读取'}}elseif(!$script:status){'正在读取'}elseif(!$script:status.ok){'⚠ 暂无法读取'}elseif($script:status.error){'⚠ 上次额度'}elseif($age-gt 180){'上次剩余额度'}else{'剩余额度'}
   $planTitle=([string]$script:status.planLabel).Trim()
   $script:ui.Header.Text=$headerState
   $script:ui.Header.ToolTip=if($script:status.planLabel){'当前套餐：'+$script:status.planLabel+' · 重置时间按本机时间显示'}else{'重置时间按本机时间显示'}
@@ -773,7 +784,7 @@ function Tick-Widget {
     }
     if($script:followHost){$layer=Set-WidgetAboveHost $script:widgetHandle $script:hostHandle}
     else{Set-WidgetDesktopLayer $script:widgetHandle $script:desktopTopmost}
-    if($showWidget){$script:window.Show();$script:lastPosition=$null;Request-Refresh}
+    if($showWidget){$script:window.Show();$script:lastPosition=$null;Request-Refresh -IfNeeded}
     if($script:gravityEnabled){if($script:gravityTimer.IsEnabled){$null=Set-WidgetGravityScene};Start-WidgetGravityTimer}
   }elseif($script:window.IsVisible){
     $script:hostFollower.Suspend()
