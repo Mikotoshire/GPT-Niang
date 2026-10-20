@@ -22,7 +22,7 @@ foreach($elasticity in @(.25,1,3)){
   $compressions+=,$x
   for($i=0;$i-lt 100 -and !$m.Rebounds;$i++){$m.Advance(1.0/240,1000)}
   Assert ($m.Rebounds-eq 1 -and [Math]::Abs(.5*$m.Velocity*$m.Velocity-$energy)-lt 1e-6) 'Recovery releases stored energy into upward velocity'
-  Assert ($m.ScaleY-eq 1 -and $m.StoredElasticEnergy-eq 0) 'Energy consumed only after neutral recovery'
+  Assert ($m.ScaleY-eq 1 -and $m.StoredElasticEnergy-eq 0 -and $m.SpringForce-eq 0) 'Energy consumed and spring unloaded after neutral recovery'
   $velocities+=,$m.Velocity
 }
 Assert ($velocities[0]-lt $velocities[1] -and $velocities[1]-lt $velocities[2]) 'Elasticity raises rebound speed'
