@@ -156,6 +156,7 @@ function Initialize-WidgetSettingsMenu {
     Add-SettingsPanel $g.Panel
     $e=New-SettingsSlider '弹性势能' 0.25 3 0.05
     $script:settingsMenuUi.ElasticStrength=$e.Slider;$script:settingsMenuUi.ElasticStrengthText=$e.Value
+    $e.Panel.ToolTip='调整蓄力跳高与碰撞能量保留比例；越大压缩越明显、反弹越高，每次仍损耗能量'
     $e.Slider.Value=$script:elasticStrength
     $e.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:elasticStrength=[Math]::Round($sender.Value,2);$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $e.Panel

@@ -11,6 +11,18 @@ public sealed class GptGravityModel {
     public const double CompressionSeconds = 0.22;
     public const double ChargeSeconds = 1.2;
     public const double Restitution = 0.64;
+    // Unit-mass energy proxy and artistic spring stiffness, not real-world material units.
+    public const double SpringStiffness = 4000000;
+    public double ImpactEnergy { get; private set; }
+    public double StoredElasticEnergy { get; private set; }
+    public double SpringCompression { get; private set; }
+    public double SpringForce { get { return SpringStiffness * SpringCompression; } }
+    public double EnergyRetention { get { return Math.Min(0.85, Restitution * Restitution * Elasticity); } }
+    bool bounceAfterCompression;
+    void ClearSpring() {
+        ImpactEnergy = StoredElasticEnergy = SpringCompression = 0;
+        bounceAfterCompression = false;
+    }
     public const double HorizontalRetention = 0.82;
     public const float GroundFriction = 0.12f;
     public int FloorImpacts { get; private set; }
@@ -81,7 +93,8 @@ public sealed class GptGravityModel {
             }
             floorContact = body.LinearVelocity.Y <= 0;
             stopLanding = !multiple || PeakHeight <= TapApex + 0.5;
-            contact.Restitution = stopLanding ? 0 : (float)Restitution;
+            // Aether resolves contact/friction; the spring reservoir releases the rebound later.
+            contact.Restitution = 0;
             // Do not let a large vertical impact impulse erase all tangential momentum.
             // Apply one bounded impact loss below; Aether handles sliding friction afterwards.
             contact.Friction = wasTouchingFloor && stopLanding ? GroundFriction : 0;
@@ -100,7 +113,7 @@ public sealed class GptGravityModel {
         ceilingLimit=ceiling; widthLimit=width;
     }
     const double LandingCompressionShare = 0.4142135623730951, TakeoffStretchSeconds = 0.08;
-    double age, held, impact, impactSpeed, impactDuration, pendingBounce, relax, releasedX, releasedY;
+    double age, held, impact, impactSpeed, impactDuration, relax, releasedX, releasedY;
     double landingEntryX, landingEntryY, takeoffStretch;
     bool flying, multiple, landing;
 
@@ -108,7 +121,7 @@ public sealed class GptGravityModel {
     public void Reset() {
         CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
-        impactSpeed = impactDuration = pendingBounce = 0; landing = false;
+        impactSpeed = impactDuration = 0; ClearSpring(); landing = false;
         landingEntryX = landingEntryY = takeoffStretch = 0;
         ScaleX = ScaleY = 1; Rebounds = 0;
         IsPressed = ReleasePending = Dragging = flying = multiple = false;
@@ -117,7 +130,7 @@ public sealed class GptGravityModel {
         IsPressed = true; ReleasePending = Dragging = flying = multiple = false;
         body.LinearVelocity = Vector2.Zero;
         Velocity = age = held = Charge = impact = relax = 0; Rebounds = 0;
-        pendingBounce = takeoffStretch = 0; landing = false;
+        ClearSpring(); takeoffStretch = 0; landing = false;
         UpdatePose();
     }
     public void ReleasePress() {
@@ -129,7 +142,7 @@ public sealed class GptGravityModel {
         IsPressed = ReleasePending = flying = false; Dragging = true;
         body.LinearVelocity = Vector2.Zero;
         Velocity = Charge = held = age = impact = relax = 0; ScaleX = ScaleY = 1;
-        pendingBounce = takeoffStretch = 0; landing = false;
+        ClearSpring(); takeoffStretch = 0; landing = false;
     }
     public void DragTo(double height) { Height = Math.Max(0, height); }
     public void DropFrom(double height) {
@@ -201,15 +214,14 @@ public sealed class GptGravityModel {
             HoldOnFloor();
             if (impact <= 0) {
                 landing = false;
-                // Aether already calculated the restitution impulse. Release it
-                // only after visual recovery, without adding energy or freezing X.
-                if (pendingBounce > 0) {
-                    Velocity = Math.Min(pendingBounce, Math.Sqrt(2 * EffectiveGravity * ceiling));
+                // Convert the retained spring energy once, after visual recovery.
+                if (bounceAfterCompression && StoredElasticEnergy > 0) {
+                    Velocity = Math.Sqrt(2 * Math.Min(StoredElasticEnergy, EffectiveGravity * ceiling));
                     body.LinearVelocity = new Vector2(body.LinearVelocity.X, (float)(Velocity / Units));
                     PeakHeight = Velocity * Velocity / (2 * EffectiveGravity); Rebounds++;
                     takeoffStretch = TakeoffStretchSeconds;
                 }
-                pendingBounce = 0;
+                StoredElasticEnergy = SpringCompression = 0; bounceAfterCompression = false;
             }
         }
         else if (floorContact && previousVelocity <= 0) {
@@ -217,6 +229,9 @@ public sealed class GptGravityModel {
                 body.LinearVelocity = new Vector2(body.LinearVelocity.X * (float)HorizontalRetention,body.LinearVelocity.Y);
                 FloorImpacts++;
                 impactSpeed = Math.Max(0, -previousVelocity);
+                ImpactEnergy = 0.5 * impactSpeed * impactSpeed;
+                StoredElasticEnergy = ImpactEnergy * EnergyRetention;
+                SpringCompression = Math.Sqrt(2 * StoredElasticEnergy / SpringStiffness);
                 double incomingStretch = FlightStretch(previousVelocity);
                 landingEntryX = -incomingStretch * 0.5; landingEntryY = incomingStretch;
                 if (relax > 0) {
@@ -227,7 +242,7 @@ public sealed class GptGravityModel {
                 impactDuration = 0.18 + 0.08 * Math.Min(1, impactSpeed / 1200);
                 impact = impactDuration; relax = 0;
                 takeoffStretch = 0;
-                pendingBounce = stopLanding ? 0 : Math.Max(0, Velocity);
+                bounceAfterCompression = !stopLanding;
                 landing = true;
                 HoldOnFloor();
             }
@@ -268,8 +283,9 @@ public sealed class GptGravityModel {
                 double envelope = phase <= LandingCompressionShare
                     ? Math.Sin(0.5 * Math.PI * phase / LandingCompressionShare)
                     : 0.5 * (1 + Math.Cos(Math.PI * (phase - LandingCompressionShare) / (1 - LandingCompressionShare)));
-                // Visual energy response: compression grows with sqrt(energy), without adding solver energy.
-                double depth = Math.Min(0.72, 0.30 * ImpactSquish * Math.Sqrt(Elasticity) * 2 * impactSpeed / (impactSpeed + 600));
+                // Cached spring compression drives both force and the visual envelope.
+                // Q is an appearance multiplier; visual saturation does not add energy.
+                double depth = Math.Min(0.72, ImpactSquish * SpringCompression);
                 double pulse = depth * envelope;
                 double entryFade = 1 - SmoothStep(phase / LandingCompressionShare);
                 ScaleX = 1 + landingEntryX * entryFade + pulse * (0.08 / 0.15);

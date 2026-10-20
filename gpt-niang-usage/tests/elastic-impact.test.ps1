@@ -22,7 +22,7 @@ Assert ($normal.Depth-gt $low.Depth*1.5 -and $high.Depth-gt $normal.Depth*1.3) '
 Assert ($normal.Depth-ge .36) 'Default high drop visibly compresses by at least 36 percent'
 $ceiling=Measure-Impact 900 1
 Assert ($ceiling.Depth-ge .44 -and $ceiling.Depth-gt $normal.Depth) 'Higher drop produces stronger visible compression'
-Assert ([Math]::Abs($low.LaunchVelocity-$high.LaunchVelocity)-lt 1e-6) 'Visual elasticity link does not inject impact rebound energy'
+Assert ($low.LaunchVelocity-lt $normal.LaunchVelocity -and $normal.LaunchVelocity-lt $high.LaunchVelocity) 'Elasticity raises the retained energy and rebound speed'
 $strong=Measure-Impact 900 3 3
 Assert ($strong.Depth-ge .65 -and $strong.Depth-le .720000001 -and $strong.Width-le 1.385) 'Maximum setting has strong but bounded squash'
 $off=Measure-Impact 900 3 0
