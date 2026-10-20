@@ -165,6 +165,12 @@ function Initialize-WidgetSettingsMenu {
     $q.Slider.Value=$script:squishStrength
     $q.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:squishStrength=[Math]::Round($sender.Value,2);$script:settingsMenuUi.SquishStrengthText.Text=$script:squishStrength.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $q.Panel
+    $a=New-SettingsSlider '动画速度' 0.25 3 0.05
+    $a.Panel.ToolTip='默认 1×，越大越快。调整触底压缩、恢复和起跳拉伸；不改变按压蓄力时间、重力和弹跳能量'
+    $script:settingsMenuUi.AnimationSpeed=$a.Slider;$script:settingsMenuUi.AnimationSpeedText=$a.Value
+    $a.Slider.Value=$script:animationSpeed
+    $a.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:animationSpeed=[Math]::Round($sender.Value,2);$script:settingsMenuUi.AnimationSpeedText.Text=$script:animationSpeed.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
+    Add-SettingsPanel $a.Panel
   } -ReturnItem
   $script:settingsMenuUi.Colors=Add-SettingsSubmenu '配色效果' {
   $script:settingsMenuUi.ColorMixed=Add-SettingsAction '台词与颜色独立随机' {Set-WidgetColorMode 'mixed';Save-Settings;Update-WidgetSettingsMenu} -Description '先抽台词，再抽变色；每句都能触发' -Checkable -ReturnItem
@@ -259,6 +265,7 @@ function Update-WidgetSettingsMenu{
     $script:settingsMenuUi.Mirror.IsChecked=$script:mirrorCharacter
     $script:settingsMenuUi.GravityStrength.Value=$script:gravityStrength;$script:settingsMenuUi.GravityStrengthText.Text=$script:gravityStrength.ToString('0.0')+'×'
     $script:settingsMenuUi.ElasticStrength.Value=$script:elasticStrength;$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×'
+    $script:settingsMenuUi.AnimationSpeed.Value=$script:animationSpeed;$script:settingsMenuUi.AnimationSpeedText.Text=$script:animationSpeed.ToString('0.00')+'×'
     $script:settingsMenuUi.SquishStrength.Value=$script:squishStrength;$script:settingsMenuUi.SquishStrengthText.Text=$script:squishStrength.ToString('0.00')+'×'
     $script:settingsMenuUi.ColorLinked.IsChecked=$script:colorMode-eq 'linked';$script:settingsMenuUi.ColorRainbow.IsChecked=$script:colorMode-eq 'rainbow';$script:settingsMenuUi.ColorOriginal.IsChecked=$script:colorMode-eq 'original'
     $script:settingsMenuUi.ColorSurprise.IsChecked=$script:colorMode-eq 'surprise';$script:settingsMenuUi.ColorRare.IsChecked=$script:colorMode-eq 'rare';$script:settingsMenuUi.ColorSpecial.IsChecked=$script:colorMode-eq 'special'

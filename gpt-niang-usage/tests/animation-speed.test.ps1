@@ -31,3 +31,33 @@ while(!$a.FloorImpacts){$a.Advance(1.0/240,900)}
 $a.Advance(.02,900);$x=$a.ScaleX;$y=$a.ScaleY;$a.SetAnimationSpeed(3)
 Assert ($a.ScaleX-eq $x -and $a.ScaleY-eq $y) 'Changing speed preserves current pose'
 'PASS: animation duration, rebound energy, bounds, reset, input/flight independence and live adjustment'
+function Import-TestFunction($file,$name){
+  $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText($file),[ref]$tokens,[ref]$errors)
+  Assert (!$errors.Count) 'Source syntax'
+  return $ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq $name},$true).Extent.Text
+}
+. ([scriptblock]::Create((Import-TestFunction (Join-Path $AppDir 'runtime/gravity.ps1') 'Set-WidgetPhysicsTuning')))
+. ([scriptblock]::Create((Import-TestFunction (Join-Path $AppDir 'widget.ps1') 'Save-Settings')))
+$tokens=$null;$errors=$null
+$ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText((Join-Path $AppDir 'widget.ps1')),[ref]$tokens,[ref]$errors)
+$load=$ast.Find({param($n)$n-is [Management.Automation.Language.IfStatementAst] -and $n.Extent.Text.StartsWith('if($null-ne $settings.animationSpeed)')},$true)
+Assert ($null-ne $load) 'Startup loads animation speed'
+foreach($value in @($null,0,.25,.75,3,4,'broken',[double]::NaN,[double]::PositiveInfinity)){
+  $settings=@{animationSpeed=$value};$script:animationSpeed=1.0
+  . ([scriptblock]::Create($load.Extent.Text))
+  $expected=if($null-ne $value -and $value-is [ValueType] -and $value-ge .25 -and $value-le 3){[double]$value}else{1.0}
+  Assert ($script:animationSpeed-eq $expected) 'Old and invalid settings retain default'
+}
+$temporary=Join-Path ([IO.Path]::GetTempPath()) ('animation-setting-'+[Guid]::NewGuid().ToString('N'))
+$script:settingsFile=Join-Path $temporary 'settings.json'
+function Write-WidgetJson($file,$data){[IO.Directory]::CreateDirectory($temporary)|Out-Null;[IO.File]::WriteAllText($file,($data|ConvertTo-Json))}
+try{
+  $script:gravity=[GptGravityModel]::new();$script:gravityStrength=1.6;$script:elasticStrength=1;$script:squishStrength=1;$script:animationSpeed=.75
+  Set-WidgetPhysicsTuning
+  $saved=Get-Content -LiteralPath $script:settingsFile -Raw|ConvertFrom-Json
+  Assert ($script:gravity.AnimationSpeed-eq .75 -and $saved.animationSpeed-eq .75) 'Production bridge applies and saves speed'
+  $settings=$saved;$script:animationSpeed=1.0
+  . ([scriptblock]::Create($load.Extent.Text))
+  Assert ($script:animationSpeed-eq .75) 'Production loader restores preference'
+}finally{if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary -Recurse -Force}}
+'PASS: production tuning bridge, persistence and startup validation'

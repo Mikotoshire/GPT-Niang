@@ -28,6 +28,10 @@ public sealed class GptGravityModel {
     public double GravityMultiplier { get; private set; }
     public double Elasticity { get; private set; }
     // AI-generated maintenance, insufficiently validated; see AI-NOTICE.md.
+    public double AnimationSpeed { get; private set; }
+    public void SetAnimationSpeed(double value) {
+        AnimationSpeed = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0.25, Math.Min(3, value));
+    }
     public double ImpactSquish { get; private set; }
     public void SetImpactSquish(double value) {
         ImpactSquish = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0, Math.Min(3, value));
@@ -95,7 +99,7 @@ public sealed class GptGravityModel {
     double landingEntryX, landingEntryY, takeoffStretch;
     bool flying, multiple, landing;
 
-    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; Reset(); }
+    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; Reset(); }
     public void Reset() {
         CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
@@ -168,9 +172,9 @@ public sealed class GptGravityModel {
             if (ReleasePending && age < CompressionSeconds)
                 dt = Math.Min(dt, CompressionSeconds - age);
             remaining -= dt;
-            impact = Math.Max(0, impact - dt);
-            relax = Math.Max(0, relax - dt);
-            takeoffStretch = Math.Max(0, takeoffStretch - dt);
+            impact = Math.Max(0, impact - dt * AnimationSpeed);
+            relax = Math.Max(0, relax - dt * AnimationSpeed);
+            takeoffStretch = Math.Max(0, takeoffStretch - dt * AnimationSpeed);
             if (IsPressed || ReleasePending) {
                 age += dt;
                 if (IsPressed) held += dt;

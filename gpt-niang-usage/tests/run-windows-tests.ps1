@@ -11,6 +11,8 @@ if($WidgetOnly){
   return
 }
 $powerShell=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+& $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'animation-speed.test.ps1')
+if($LASTEXITCODE-ne 0){throw 'Animation speed regression failed.'}
 & $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'landing-easing.test.ps1')
 if($LASTEXITCODE-ne 0){throw 'Landing easing regression failed.'}
 & $powerShell -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'landing-cycle.test.ps1')
