@@ -268,7 +268,8 @@ public sealed class GptGravityModel {
                 double envelope = phase <= LandingCompressionShare
                     ? Math.Sin(0.5 * Math.PI * phase / LandingCompressionShare)
                     : 0.5 * (1 + Math.Cos(Math.PI * (phase - LandingCompressionShare) / (1 - LandingCompressionShare)));
-                double depth = Math.Min(0.55, 0.15 * ImpactSquish * 2 * impactSpeed / (impactSpeed + 600));
+                // Visual energy response: compression grows with sqrt(energy), without adding solver energy.
+                double depth = Math.Min(0.72, 0.30 * ImpactSquish * Math.Sqrt(Elasticity) * 2 * impactSpeed / (impactSpeed + 600));
                 double pulse = depth * envelope;
                 double entryFade = 1 - SmoothStep(phase / LandingCompressionShare);
                 ScaleX = 1 + landingEntryX * entryFade + pulse * (0.08 / 0.15);

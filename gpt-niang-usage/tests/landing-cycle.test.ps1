@@ -37,7 +37,7 @@ $m=[GptGravityModel]::new();$m.FlingFrom(1,0,-1200);First-Landing $m
 for($i=0;$i-lt 100 -and $m.Rebounds-eq 0;$i++){$m.Advance(1.0/240,900)}
 Assert ($m.Rebounds-eq 1 -and $m.Velocity-gt 0) 'A fast downward fling must retain its rebound energy even close to the floor'
 $m=[GptGravityModel]::new();$m.SetImpactSquish(3);$m.FlingFrom(1,0,-1600);First-Landing $m
-for($i=0;$i-lt 50;$i++){$m.Advance(1.0/240,900);Assert ($m.ScaleY-ge 0.44 -and $m.ScaleX-le 1.30) 'Strong impacts must stay within safe scale bounds'}
+for($i=0;$i-lt 50;$i++){$m.Advance(1.0/240,900);Assert ($m.ScaleY-ge 0.279999999 -and $m.ScaleX-le 1.385) 'Strong impacts must stay within safe scale bounds'}
 foreach($cancel in @('Reset','BeginPress','BeginDrag')){
   $m=[GptGravityModel]::new();$m.DropFrom(240);First-Landing $m
   $m.Advance(0.06,900)
