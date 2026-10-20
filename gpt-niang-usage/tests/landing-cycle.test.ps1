@@ -33,12 +33,30 @@ foreach($speed in @(100,600,1200)){
   $depths+=,$depth
 }
 Assert ($depths[0]-gt 0 -and $depths[1]-gt $depths[0] -and $depths[2]-gt $depths[1]) 'Faster downward impacts must produce progressively more compression'
+$m=[GptGravityModel]::new();$m.FlingFrom(1,0,-1200);First-Landing $m
+for($i=0;$i-lt 100 -and $m.Rebounds-eq 0;$i++){$m.Advance(1.0/240,900)}
+Assert ($m.Rebounds-eq 1 -and $m.Velocity-gt 0) 'A fast downward fling must retain its rebound energy even close to the floor'
 $m=[GptGravityModel]::new();$m.SetImpactSquish(3);$m.FlingFrom(1,0,-1600);First-Landing $m
 for($i=0;$i-lt 50;$i++){$m.Advance(1.0/240,900);Assert ($m.ScaleY-ge 0.44 -and $m.ScaleX-le 1.30) 'Strong impacts must stay within safe scale bounds'}
 foreach($cancel in @('Reset','BeginPress','BeginDrag')){
   $m=[GptGravityModel]::new();$m.DropFrom(240);First-Landing $m
+  $m.Advance(0.06,900)
   $m.$cancel()
   for($i=0;$i-lt 100;$i++){$m.Advance(1.0/240,900)}
   Assert ($m.Rebounds-eq 0 -and $m.Velocity-eq 0) 'Interrupting a landing cancels stored rebound'
 }
+$m=[GptGravityModel]::new();$m.DropFrom(500)
+$depthByHit=@{}
+for($i=0;$i-lt 3000 -and $m.Active;$i++){
+  $m.Advance(1.0/240,900)
+  $hit=$m.FloorImpacts
+  if($hit-gt 0){
+    if(!$depthByHit.ContainsKey($hit)){$depthByHit[$hit]=0.0}
+    $depthByHit[$hit]=[Math]::Max([double]$depthByHit[$hit],1-$m.ScaleY)
+  }
+}
+Assert ($depthByHit.Count-ge 3 -and $depthByHit[1]-gt $depthByHit[2] -and $depthByHit[2]-gt $depthByHit[3]) 'Repeated bounces must deform less as impact speed falls'
+Assert (!$m.Active -and $m.Height-eq 0 -and $m.ScaleY-eq 1) 'Final low bounce must recover and settle'
+$m=[GptGravityModel]::new();$m.DropFrom(240);First-Landing $m;$m.Advance(0.01,0);$m.Advance(0.1,900)
+Assert (!$m.Active -and $m.Rebounds-eq 0) 'Removing available height must cancel pending rebound'
 'PASS: speed-linked compression, floor dwell, recovery before takeoff, sliding, bounded energy and cancellation'

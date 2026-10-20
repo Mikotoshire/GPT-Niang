@@ -65,6 +65,11 @@ public sealed class GptGravityModel {
         if(!contact.IsTouching)return;
         if (contact.FixtureA == floor || contact.FixtureB == floor) {
             touchingFloor = true;
+            if (landing) {
+                floorContact = false;
+                contact.Restitution = 0; contact.Friction = GroundFriction;
+                return;
+            }
             floorContact = body.LinearVelocity.Y <= 0;
             stopLanding = !multiple || PeakHeight <= TapApex + 0.5;
             contact.Restitution = stopLanding ? 0 : (float)Restitution;
@@ -85,20 +90,23 @@ public sealed class GptGravityModel {
         bounds.CreateEdge(new Vector2(-1,top+0.25f),new Vector2(right+1,top+0.25f));
         ceilingLimit=ceiling; widthLimit=width;
     }
-    double age, held, impact, relax, releasedX, releasedY;
-    bool flying, multiple;
+    double age, held, impact, impactSpeed, impactDuration, pendingBounce, relax, releasedX, releasedY;
+    bool flying, multiple, landing;
 
     public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; Reset(); }
     public void Reset() {
         CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
+        impactSpeed = impactDuration = pendingBounce = 0; landing = false;
         ScaleX = ScaleY = 1; Rebounds = 0;
         IsPressed = ReleasePending = Dragging = flying = multiple = false;
     }
     public void BeginPress() {
         IsPressed = true; ReleasePending = Dragging = flying = multiple = false;
         body.LinearVelocity = Vector2.Zero;
-        Velocity = age = held = Charge = impact = relax = 0; Rebounds = 0; UpdatePose();
+        Velocity = age = held = Charge = impact = relax = 0; Rebounds = 0;
+        pendingBounce = 0; landing = false;
+        UpdatePose();
     }
     public void ReleasePress() {
         if (!IsPressed) return;
@@ -109,6 +117,7 @@ public sealed class GptGravityModel {
         IsPressed = ReleasePending = flying = false; Dragging = true;
         body.LinearVelocity = Vector2.Zero;
         Velocity = Charge = held = age = impact = relax = 0; ScaleX = ScaleY = 1;
+        pendingBounce = 0; landing = false;
     }
     public void DragTo(double height) { Height = Math.Max(0, height); }
     public void DropFrom(double height) {
@@ -121,7 +130,8 @@ public sealed class GptGravityModel {
         vy = Math.Max(-1600, Math.Min(1600, vy));
         body.Position = new Vector2((float)(x/Units), (float)(Height/Units));
         body.LinearVelocity = new Vector2((float)(vx/Units),(float)(vy/Units));
-        Velocity = vy; PeakHeight = Height + Math.Max(0,vy)*Math.Max(0,vy)/(2*EffectiveGravity);
+        // The stopping threshold must include downward fling energy as well.
+        Velocity = vy; PeakHeight = Height + vy*vy/(2*EffectiveGravity);
         multiple = true; flying = Height > 0 || vx != 0 || vy != 0;
     }
     public void CancelPress() { DropFrom(Height); }
@@ -174,24 +184,43 @@ public sealed class GptGravityModel {
         Height = Math.Max(0, Math.Min(ceiling, body.Position.Y * Units));
         HorizontalPosition = Math.Max(0,Math.Min(widthLimit,body.Position.X * Units));
         Velocity = body.LinearVelocity.Y * Units;
-        if (floorContact && previousVelocity <= 0) {
-            if(!wasTouchingFloor && (previousHeight>0 || previousVelocity<0)){
-                body.LinearVelocity = new Vector2(body.LinearVelocity.X * (float)HorizontalRetention,body.LinearVelocity.Y);
-                FloorImpacts++;impact = 0.12;
-            }
-            if (stopLanding) {
-                Height = Velocity = 0;
-                body.Position = new Vector2(body.Position.X,0);
-                body.LinearVelocity = new Vector2(body.LinearVelocity.X,0);
-            } else if (Velocity > 0) {
-                PeakHeight = Height + Velocity*Velocity/(2*EffectiveGravity); Rebounds++;
+        if (landing) {
+            HoldOnFloor();
+            if (impact <= 0) {
+                landing = false;
+                // Aether already calculated the restitution impulse. Release it
+                // only after visual recovery, without adding energy or freezing X.
+                if (pendingBounce > 0) {
+                    Velocity = Math.Min(pendingBounce, Math.Sqrt(2 * EffectiveGravity * ceiling));
+                    body.LinearVelocity = new Vector2(body.LinearVelocity.X, (float)(Velocity / Units));
+                    PeakHeight = Velocity * Velocity / (2 * EffectiveGravity); Rebounds++;
+                }
+                pendingBounce = 0;
             }
         }
+        else if (floorContact && previousVelocity <= 0) {
+            if(!wasTouchingFloor && (previousHeight>0 || previousVelocity<0)){
+                body.LinearVelocity = new Vector2(body.LinearVelocity.X * (float)HorizontalRetention,body.LinearVelocity.Y);
+                FloorImpacts++;
+                impactSpeed = Math.Max(0, -previousVelocity);
+                impactDuration = 0.10 + 0.06 * Math.Min(1, impactSpeed / 1200);
+                impact = impactDuration; relax = 0;
+                pendingBounce = stopLanding ? 0 : Math.Max(0, Velocity);
+                landing = true;
+                HoldOnFloor();
+            }
+            else if (stopLanding) HoldOnFloor();
+        }
         wasTouchingFloor = touchingFloor;
-        if (Height < 0.8 && Math.Abs(Velocity) < 2 && Math.Abs(HorizontalVelocity) < 2) {
+        if (!landing && Height < 0.8 && Math.Abs(Velocity) < 2 && Math.Abs(HorizontalVelocity) < 2) {
             Height = Velocity = 0; body.LinearVelocity = Vector2.Zero;
             body.Position = new Vector2(body.Position.X,0); flying = false;
         }
+    }
+    void HoldOnFloor() {
+        Height = Velocity = 0;
+        body.Position = new Vector2(body.Position.X, 0);
+        body.LinearVelocity = new Vector2(body.LinearVelocity.X, 0);
     }
     void UpdatePose() {
         if (IsPressed || ReleasePending) {
@@ -201,9 +230,11 @@ public sealed class GptGravityModel {
             ScaleX = 1 + 0.05 * ease + 0.4 * Charge;
         } else {
             double stretch = flying ? Math.Min(0.06, Math.Abs(Velocity) / 14000) : 0;
-            double pulse = impact > 0 ? ImpactSquish * Math.Sin(Math.PI * (1 - impact / 0.12)) : 0;
-            ScaleX = 1 - stretch * 0.5 + pulse * 0.08;
-            ScaleY = 1 + stretch - pulse * 0.15;
+            double speedFactor = 2 * impactSpeed / (impactSpeed + 600);
+            double depth = Math.Min(0.55, 0.15 * ImpactSquish * speedFactor);
+            double pulse = impact > 0 ? depth * Math.Sin(Math.PI * (1 - impact / impactDuration)) : 0;
+            ScaleX = 1 - stretch * 0.5 + pulse * (0.08 / 0.15);
+            ScaleY = 1 + stretch - pulse;
             if (relax > 0) {
                 double blend = relax / 0.1;
                 blend = blend * blend * (3 - 2 * blend);

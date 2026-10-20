@@ -160,7 +160,7 @@ function Initialize-WidgetSettingsMenu {
     $e.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:elasticStrength=[Math]::Round($sender.Value,2);$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $e.Panel
     $q=New-SettingsSlider 'Q弹程度' 0 3 0.05
-    $q.Panel.ToolTip='仅调整触底压扁与回弹形变；0 为关闭，1 为原有效果，不改变弹跳高度'
+    $q.Panel.ToolTip='按撞地速度调整触底压扁；0 关闭形变，1 为标准强度。先压缩恢复，再向上弹起'
     $script:settingsMenuUi.SquishStrength=$q.Slider;$script:settingsMenuUi.SquishStrengthText=$q.Value
     $q.Slider.Value=$script:squishStrength
     $q.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:squishStrength=[Math]::Round($sender.Value,2);$script:settingsMenuUi.SquishStrengthText.Text=$script:squishStrength.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
