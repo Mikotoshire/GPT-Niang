@@ -77,6 +77,14 @@ powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -File tests/gravity-wpf.t
 
 测试通过后提交、合并 `main`、同步个人 GitHub、保存 bundle 并重载挂件。不要强制推送或丢弃用户修改。若命令行推送认证仍不可用，使用已连接的 GitHub 工具发布提交；重新获取远端后，仅在源码树完全一致且已备份的前提下对齐本地记录。
 
+用户当前要求：继续同步代码作为备份；不自动打包发行文件、创建发布标签或发布 Release，等用户明确要求发布。两类操作分别授权。
+
+### 动画速度
+
+AI 生成修改与文档，未经充分验证。重力与弹性菜单的 `动画速度` 为 0.25–3×、默认 1×，本机保存 `animationSpeed`。仅以倍率推进触底形变、松手恢复与起跳拉伸计时器；不缩放物理 dt 或按压/蓄力阈值。中途调整保留当前动画相位，重置模型保留设置。慢速触底停留更久，因此地面摩擦作用时间也更久；回弹仍使用碰撞时储存的引擎速度。设置不改变渲染目标帧率。
+
+测试入口：`animation-speed.test.ps1`，与现有菜单、形变、物理回归及 Windows 测试运行器相连；证据见 `docs/testing/animation-speed.tdd.md`。
+
 当前功能仅在 Windows 验证。早期 Task Scheduler 错误 `0x8007010B` 已在后述 Windows 自启动修复中处理。
 
 ## 公开仓库隐私

@@ -8,6 +8,7 @@ For current interaction architecture, physics constants and regression checks, a
 - Preserve upstream Git history, copyright, LICENSE, character artwork/source notices and quotation licenses. Do not imply ownership of third-party artwork.
 - `origin` is `Mikotoshire/GPT-Niang`; `upstream` is reference only. Never push to upstream or automatically install its releases.
 - Keep deployed, tested code on `main`. Use a `personal/<feature>` branch for changes and merge only after appropriate checks. The user's recurring intent is to maintain this personal fork, back up completed changes to their GitHub repository and keep the local installation on that version.
+- Current user policy: continue synchronizing reviewed, tested source code to personal GitHub after completed development stages. Do not package a distributable, create a release tag or publish a GitHub Release until explicitly requested. Code synchronization and release publication are separate actions.
 - Before substantial changes create a backup tag and a bundle outside this repository. Do not rewrite or discard user work, force push, or use destructive clean/reset commands.
 - Keep fork-policy release updates disabled. Do not add background Git pulls or automatically run remote code. Synchronize during an authorized development session.
 - Never commit installation.json, credentials, account/session files, quota snapshots or private preferences. Installation generates a machine-specific `.mcp.json`; its local skip-worktree flag is intentional. Handle template changes explicitly.
