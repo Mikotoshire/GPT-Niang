@@ -4,7 +4,7 @@ using nkast.Aether.Physics2D.Dynamics;
 using nkast.Aether.Physics2D.Dynamics.Contacts;
 using nkast.Aether.Physics2D.Collision;
 
-// Interaction policy in design DIP. Aether owns integration, contacts and friction.
+// Interaction policy in design DIP. Aether owns integration and contacts.
 public sealed class GptGravityModel {
     public const double Gravity = 1800.0;
     public const double TapHeight = 24.0;
@@ -34,7 +34,7 @@ public sealed class GptGravityModel {
         bounceAfterCompression = false;
     }
     public const double HorizontalRetention = 0.82;
-    public const float GroundFriction = 0.12f;
+    public const float GroundFriction = 0.18f;
     public int FloorImpacts { get; private set; }
     public double Height { get; private set; }
     public double Velocity { get; private set; }
@@ -110,16 +110,16 @@ public sealed class GptGravityModel {
             touchingFloor = true;
             if (landing) {
                 floorContact = false;
-                contact.Restitution = 0; contact.Friction = GroundFriction;
+                contact.Restitution = 0; contact.Friction = 0;
                 return;
             }
             floorContact = body.LinearVelocity.Y <= 0;
             stopLanding = !multiple || PeakHeight <= TapApex + 0.5;
-            // Aether resolves contact/friction; the spring reservoir releases the rebound later.
+            // The spring reservoir releases the rebound after visual recovery.
             contact.Restitution = 0;
             // Do not let a large vertical impact impulse erase all tangential momentum.
-            // Apply one bounded impact loss below; Aether handles sliding friction afterwards.
-            contact.Friction = wasTouchingFloor && stopLanding ? GroundFriction : 0;
+            // Ground drag below is explicit so floor holds cannot disrupt solver friction.
+            contact.Friction = 0;
         } else { contact.Restitution = 0.64f; contact.Friction = 0; }
     }
     void SetBounds(double ceiling, double width) {
@@ -233,6 +233,14 @@ public sealed class GptGravityModel {
         Height = Math.Max(0, Math.Min(ceiling, body.Position.Y * Units));
         HorizontalPosition = Math.Max(0,Math.Min(widthLimit,body.Position.X * Units));
         Velocity = body.LinearVelocity.Y * Units;
+        // AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
+        // Apply mu*g only during supported sliding/landing, not the first impact
+        // or airborne motion. Explicit drag stays stable while HoldOnFloor pins Y.
+        if (landing || (wasTouchingFloor && touchingFloor && previousHeight <= 0 && previousVelocity <= 0)) {
+            double vx = body.LinearVelocity.X;
+            double speed = Math.Max(0, Math.Abs(vx) - GroundFriction * EffectiveGravity * seconds / Units);
+            body.LinearVelocity = new Vector2((float)(Math.Sign(vx) * speed), body.LinearVelocity.Y);
+        }
         if (landing) {
             HoldOnFloor();
             if (impact <= 0) {

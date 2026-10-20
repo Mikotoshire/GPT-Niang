@@ -80,7 +80,8 @@ public sealed class GptGravityRenderLoop {
         long started=Stopwatch.GetTimestamp();
         s.Model.Advance(seconds,ceiling,width);
         physicsTicks+=Stopwatch.GetTimestamp()-started;started=Stopwatch.GetTimestamp();
-        s.Scale.ScaleX=s.Model.ScaleX;s.Scale.ScaleY=s.Model.ScaleY;
+        if(s.Scale.ScaleX!=s.Model.ScaleX)s.Scale.ScaleX=s.Model.ScaleX;
+        if(s.Scale.ScaleY!=s.Model.ScaleY)s.Scale.ScaleY=s.Model.ScaleY;
         poseTicks+=Stopwatch.GetTimestamp()-started;started=Stopwatch.GetTimestamp();
         int x=s.Free?(int)Math.Round(s.FrameLeft+s.Model.HorizontalPosition*s.Unit):
             s.Anchor=="right"?(int)Math.Round(s.FrameRight-s.Width-s.Right*s.Dpi):(int)Math.Round(s.FrameLeft+s.Left*s.Dpi);
@@ -89,12 +90,19 @@ public sealed class GptGravityRenderLoop {
         int y=(int)Math.Round(s.FrameBottom-s.Height+s.Padding-s.Model.Height*s.Unit);
         string anchor=s.Free?"free":s.Anchor;
         double left=(x-s.FrameLeft)/s.Dpi,right=(s.FrameRight-x-s.Width)/s.Dpi;
-        if(s.Move!=null)s.Move((int)Math.Round(left*s.Dpi),(int)Math.Round(right*s.Dpi),bottom,anchor);
+        bool moved=!s.HasPose || s.X!=x || s.Y!=y;
+        if(s.Move!=null){
+            // Compression and rounded subpixel movement can leave the native
+            // rectangle unchanged. Keep rendering the pose without repeating
+            // host placement/monitor/clipping queries for the same position.
+            if(moved || s.PoseLeft!=left || s.PoseRight!=right)
+                s.Move((int)Math.Round(left*s.Dpi),(int)Math.Round(right*s.Dpi),bottom,anchor);
+        }
         else {
             Rect old;if(!GetWindowRect(s.Widget,out old) || old.Left!=x || old.Top!=y)
                 if(!SetWindowPos(s.Widget,IntPtr.Zero,x,y,0,0,0x15))throw new InvalidOperationException("Native animation movement failed");
         }
-        if(!s.HasPose || s.X!=x || s.Y!=y)PositionUpdates++;
+        if(moved)PositionUpdates++;
         s.X=x;s.Y=y;s.PoseLeft=left;s.PoseRight=right;s.HasPose=true;
         placementTicks+=Stopwatch.GetTimestamp()-started;
         return s.Model.Active;
