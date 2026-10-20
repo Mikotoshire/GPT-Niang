@@ -167,7 +167,7 @@ function Initialize-WidgetSettingsMenu {
     $t.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:tapCompression=[Math]::Round($sender.Value,2);$script:settingsMenuUi.TapCompressionText.Text=$script:tapCompression.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $t.Panel
     $c=New-SettingsSlider '反弹程度' 0 100 5
-    $c.Panel.ToolTip='每档 5%；越高压缩越深、反弹越高。0 关闭反弹，100 为最大反弹且仍有能量损耗；不影响手动起跳'
+    $c.Panel.ToolTip='每档 5%；越高压缩越深、反弹越高，触底动画更长。0 关闭反弹，100 为最大反弹且仍有能量损耗；不影响手动起跳'
     $script:settingsMenuUi.EnergyConversion=$c.Slider;$script:settingsMenuUi.EnergyConversionText=$c.Value
     $c.Slider.IsSnapToTickEnabled=$true
     $c.Slider.Value=$script:reboundStrength
@@ -187,7 +187,7 @@ function Initialize-WidgetSettingsMenu {
     Add-SettingsPanel $a.Panel
     $script:settingsMenuUi.CompressionCurveMenu=Add-SettingsSubmenu '压缩曲线' {
       $r=New-SettingsSlider '压缩减速强度' 1.5 3 0.05
-      $r.Panel.ToolTip='越大，垂直压缩初速越快、越早接近最扁并缓慢收住；末端速度为零。只调整压缩段，下次触底生效；总时长由动画速度控制'
+      $r.Panel.ToolTip='越大，垂直压缩初速越快、越早接近最扁并缓慢收住；末端速度为零。只调整压缩段，下次触底生效；基础时长随储能变化，再由动画速度统一调节'
       $script:settingsMenuUi.CompressionCurve=$r.Slider;$script:settingsMenuUi.CompressionCurveText=$r.Value
       $r.Slider.Value=$script:compressionCurve
       $canvas=New-Object Windows.Controls.Canvas;$canvas.Width=200;$canvas.Height=76

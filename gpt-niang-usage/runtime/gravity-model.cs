@@ -135,6 +135,7 @@ public sealed class GptGravityModel {
         ceilingLimit=ceiling; widthLimit=width;
     }
     const double LandingCompressionShare = 0.4142135623730951, TakeoffStretchSeconds = 0.08;
+    const double MinLandingSeconds = 0.06, MaxLandingSeconds = 0.30, DurationCompressionReference = 0.25;
     double age, held, impact, impactSpeed, impactDuration, relax, releasedX, releasedY;
     double landingEntryX, landingEntryY, takeoffStretch;
     bool flying, multiple, landing;
@@ -263,7 +264,8 @@ public sealed class GptGravityModel {
                     landingEntryX += (releasedX - 1 - landingEntryX) * blend;
                     landingEntryY += (releasedY - 1 - landingEntryY) * blend;
                 }
-                impactDuration = 0.18 + 0.08 * Math.Min(1, impactSpeed / 1200);
+                // Artistic contact timing: weaker stored energy recovers sooner, without a spring solver.
+                impactDuration = MinLandingSeconds + (MaxLandingSeconds - MinLandingSeconds) * SpringCompression / (DurationCompressionReference + SpringCompression);
                 impact = impactDuration; relax = 0;
                 takeoffStretch = 0;
                 bounceAfterCompression = !stopLanding;
