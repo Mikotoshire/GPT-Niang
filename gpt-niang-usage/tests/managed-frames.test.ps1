@@ -56,7 +56,7 @@ function Get-WidgetPlacementFrame {return [pscustomobject]@{Left=100;Top=100;Rig
 function Get-WidgetPlacementDpi {return $script:testDpi}
 $script:testDpi=1
 Initialize-WidgetGravity
-if($script:gravityTimer.TargetFps-ne 120){throw 'Animation scheduling must allow 120 FPS'}
+if($script:gravityTimer.TargetFps-lt 120){throw 'Animation scheduling must allow 120 FPS'}
 $script:window.Opacity=if($Visible){1}else{0};$script:window.ShowActivated=$false;$script:window.Show()
 $script:widgetHandle=([Windows.Interop.WindowInteropHelper]::new($script:window)).Handle
 $probe=$null
@@ -105,13 +105,13 @@ try{
   if($script:gravityTimer.FrameCount-ne 7){throw 'Jittered 60-Hz presentation frames were discarded'}
   Write-Output 'PASS: all seven 60-Hz frames survive alternating 25-ms and 8.33-ms delivery intervals'
   $script:gravityTimer.Start();$arrivalClock.Stop()
-  foreach($index in 0..239){
-    $event=[Activator]::CreateInstance([Windows.Media.RenderingEventArgs],$flags,$null,@([TimeSpan]::FromSeconds(1+$index/240.0)),$null)
+  foreach($index in 0..479){
+    $event=[Activator]::CreateInstance([Windows.Media.RenderingEventArgs],$flags,$null,@([TimeSpan]::FromSeconds(1+$index/480.0)),$null)
     $null=$renderMethod.Invoke($script:gravityTimer,@($null,$event))
   }
   $script:gravityTimer.Stop()
-  if($script:gravityTimer.FrameCount-lt 118 -or $script:gravityTimer.FrameCount-gt 122){throw 'The limiter lost its sustained 120-Hz budget'}
-  Write-Output 'PASS: 240-Hz synthetic input remains capped by the sustained 120-Hz budget'
+  if($script:gravityTimer.FrameCount-lt 238 -or $script:gravityTimer.FrameCount-gt 242){throw 'The limiter lost its sustained 240-Hz budget'}
+  Write-Output 'PASS: 480-Hz synthetic input remains capped by the sustained 240-Hz budget'
   $script:gravityTimer.Start();$arrivalClock.Stop()
   foreach($index in 0..119){
     $event=[Activator]::CreateInstance([Windows.Media.RenderingEventArgs],$flags,$null,@([TimeSpan]::FromSeconds(1+$index/120.0)),$null)
@@ -120,6 +120,18 @@ try{
   $script:gravityTimer.Stop()
   if($script:gravityTimer.FrameCount-ne 120){throw 'Valid 120-Hz frames were discarded'}
   Write-Output 'PASS: all 120 presentation frames survive a one-second 120-Hz input fixture'
+  # Model the observed producer feedback: dropping a high-rate Rendering
+  # callback can leave no dirty visual and delay the next callback by 33 ms.
+  $script:gravityTimer.Start();$arrivalClock.Stop();$time=1.0;$backoffs=0
+  while($time-lt 2){
+    $before=$script:gravityTimer.FrameCount
+    $event=[Activator]::CreateInstance([Windows.Media.RenderingEventArgs],$flags,$null,@([TimeSpan]::FromSeconds($time)),$null)
+    $null=$renderMethod.Invoke($script:gravityTimer,@($null,$event))
+    if($script:gravityTimer.FrameCount-eq $before){$backoffs++;$time+=1.0/30}else{$time+=1.0/200}
+  }
+  $script:gravityTimer.Stop()
+  if($backoffs-ne 0 -or $script:gravityTimer.FrameCount-lt 199){throw 'High-rate producer entered the skip/backoff cadence trap'}
+  Write-Output 'PASS: adaptive 200-Hz producer avoids skip/backoff feedback without removing the upper budget'
   $activity=[Delegate]::CreateDelegate([Func[bool]],$script:gravityTimer,'get_CanObserveFrame')
   $gatedProbe=[FrameInputProbe]::new($activity)
   $gatedObserve=$gatedProbe.GetType().GetMethod('Observe',$probeFlags)
@@ -150,7 +162,7 @@ try{
   # The requirement is 60 Hz when supplied; the 120-Hz cap is headroom, not a
   # guarantee to process every compositor callback above the required rate.
   $inputHz=$probe.Fps;$expectedHz=[Math]::Min(60,$inputHz)
-  if($probe.Count-lt 10 -or $loop.Fps-lt $expectedHz*0.95 -or $loop.Fps-gt 125){throw ('Render processing lost input cadence: input='+$inputHz+' processed='+$loop.Fps)}
+  if($probe.Count-lt 10 -or $loop.Fps-lt $expectedHz*0.95 -or $loop.Fps-gt $loop.TargetFps+5){throw ('Render processing lost input cadence: input='+$inputHz+' processed='+$loop.Fps)}
   # A hosted source below the requested 60 Hz cannot qualify the hardware,
   # even when it happens to fit the local measurement's 58-Hz tolerance.
   $hardwareQualified=$loop.FrameCount-ge 100 -and $loop.Fps-ge 58 -and (!$AllowLimitedCompositor -or $inputHz-ge 60)
