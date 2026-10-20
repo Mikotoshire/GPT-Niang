@@ -31,4 +31,4 @@ Assert ([Math]::Abs($off.LaunchVelocity-$strong.LaunchVelocity)-lt 1e-6) 'Q ampl
 $m=$strong.Model
 for($i=0;$i-lt 4000 -and $m.Active;$i++){$m.Advance(1.0/240,1000);Assert ($m.ScaleY-ge .279999999 -and $m.ScaleX-le 1.385) 'Repeated bounces stay bounded'}
 Assert (!$m.Active -and $m.ScaleX-eq 1 -and $m.ScaleY-eq 1) 'Repeated bounces recover and settle'
-'PASS: elastic energy linked impact squash, stronger high drops, safe limits, neutral takeoff and no added rebound energy'
+'PASS: elastic energy linked impact squash, stronger high drops, safe limits, neutral takeoff and controlled rebound energy'

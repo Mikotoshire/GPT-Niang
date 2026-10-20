@@ -24,7 +24,7 @@ Assert ($m.HorizontalPosition-gt $initialX -and $m.HorizontalVelocity-gt 0) 'Hor
 Assert ($m.FloorImpacts-eq 1 -and $m.Rebounds-eq 1) 'Compression is one collision and one delayed rebound'
 $peak=0.0
 for($i=0;$i-lt 200 -and $m.FloorImpacts-eq 1;$i++){$m.Advance(1.0/240,900,20000);$peak=[Math]::Max($peak,$m.Height)}
-Assert ($peak-gt 80 -and $peak-le 240*[GptGravityModel]::Restitution*[GptGravityModel]::Restitution+2) 'Delayed takeoff retains bounded solver rebound energy'
+Assert ($peak-gt 80 -and $peak-le 240*[GptGravityModel]::Restitution*[GptGravityModel]::Restitution+2) 'Delayed takeoff retains bounded default rebound energy'
 $depths=@()
 foreach($speed in @(100,600,1200)){
   $m=[GptGravityModel]::new();$m.FlingFrom(1,0,-$speed);First-Landing $m
