@@ -76,6 +76,8 @@ foreach($follow in @($true,$false)){
       & $pressMove $null $event
       if([GptWidgetNative]::Calls-ne $before+1){throw 'Drag did not move the native window.'}
       Assert-SizeAfterNativeMove 'dragging'
+      & $pressMove $null $event
+      if([GptWidgetNative]::Calls-ne $before+1){throw 'A duplicate cursor event repeated native window movement'}
     }
     $script:drag=$null
     for($i=0;$i-lt 20;$i++){

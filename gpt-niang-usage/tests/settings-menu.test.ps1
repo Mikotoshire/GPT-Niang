@@ -10,6 +10,7 @@ $script:gravity=[GptGravityModel]::new()
 function Assert-Equal($actual,$expected,[string]$message){if($actual-ne $expected){throw "$message : expected '$expected', got '$actual'"}}
 function Save-Settings {}
 function Set-WidgetFollowHost([bool]$Follow){$script:followHost=$Follow}
+$productionMenuBounds=${function:Set-WidgetMenuBounds}
 function Set-WidgetMenuBounds {}
 function Position-WidgetMenuToHost {}
 function Set-Appearance {}
@@ -140,6 +141,17 @@ try{
   $script:settingsMenuUi.Sound.IsChecked=$false
   $script:settingsMenuUi.Sound.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
   Assert-Equal $script:settingsMenuUi.Volume.IsEnabled $false 'Muted sound disables volume control'
+  $script:followHost=$false;$script:menuTestFrameWidth=1000
+  function Get-WidgetPlacementFrame {return [pscustomobject]@{Left=0;Top=0;Right=$script:menuTestFrameWidth;Bottom=1000}}
+  function Get-WidgetPlacementDpi {return 1.0}
+  & $productionMenuBounds
+  $oldWidth=$script:context.Resources['SettingsSubmenuWidth'];$oldHeight=$script:context.Resources['SettingsSubmenuMaxHeight']
+  & $productionMenuBounds
+  Assert-Equal ([object]::ReferenceEquals($oldWidth,$script:context.Resources['SettingsSubmenuWidth'])) $true 'Unchanged menu bounds must not invalidate dynamic width resources'
+  Assert-Equal ([object]::ReferenceEquals($oldHeight,$script:context.Resources['SettingsSubmenuMaxHeight'])) $true 'Unchanged menu bounds must not invalidate dynamic height resources'
+  $script:menuTestFrameWidth=240
+  & $productionMenuBounds
+  Assert-Equal $script:context.Resources['SettingsSubmenuWidth'] 224 'Host resizing still updates menu bounds'
   Write-Output 'PASS: menu modes, conditional topmost, shared row styling, presets and sound controls'
 }finally{
   $script:window.Close()
