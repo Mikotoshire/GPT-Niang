@@ -5,7 +5,8 @@ Add-Type -Path $library
 Add-Type -Path (Join-Path $AppDir 'runtime/gravity-model.cs') -ReferencedAssemblies $library
 function Assert($Value,$Message){if(!$Value){throw $Message}}
 foreach($direction in @(1,-1)){
-  $m=[GptGravityModel]::new();$m.SetHorizontalPosition(5000);$m.FlingFrom(240,300*$direction,0)
+  # Isolate the once-per-impact loss; stronger supported drag is tested separately.
+  $m=[GptGravityModel]::new();$m.SetGroundFriction(0);$m.SetHorizontalPosition(5000);$m.FlingFrom(240,300*$direction,0)
   $hits=0
   for($i=0;$i-lt 2000 -and $hits-lt 3;$i++){
     $before=$m.HorizontalVelocity;$previousHits=$m.FloorImpacts

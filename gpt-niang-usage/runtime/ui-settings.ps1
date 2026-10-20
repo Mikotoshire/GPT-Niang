@@ -160,7 +160,7 @@ function Initialize-WidgetSettingsMenu {
     $g.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:gravityStrength=[Math]::Round($sender.Value,1);$script:settingsMenuUi.GravityStrengthText.Text=$script:gravityStrength.ToString('0.0')+'×';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $g.Panel
     $f=New-SettingsSlider '底部摩擦力' 0 3 0.1
-    $f.Panel.ToolTip='只降低贴底滑动和触底压缩期间的水平速度；0 关闭滑动摩擦，1 为标准，越大停止越快。撞击时的横向损耗仍保留'
+    $f.Panel.ToolTip='只降低贴底时的水平速度；向下撞击越快，触底期间摩擦越强（最多 3 倍），随后恢复普通滑动摩擦。0 关闭滑动摩擦，1 为标准；撞击时的横向损耗仍保留'
     $script:settingsMenuUi.GroundFriction=$f.Slider;$script:settingsMenuUi.GroundFrictionText=$f.Value
     $f.Slider.Value=$script:groundFriction
     $f.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:groundFriction=[Math]::Round($sender.Value,1);$script:settingsMenuUi.GroundFrictionText.Text=$script:groundFriction.ToString('0.0')+'×';Set-WidgetPhysicsTuning})

@@ -84,4 +84,12 @@ for($i=0;$i-lt 3000 -and $model.Active;$i++){
   if($height-gt 1 -and $model.Height-gt 1 -and $model.FloorImpacts-eq $hits){$sawAir=$true;Assert ([Math]::Abs($model.HorizontalVelocity-$before)-lt .01) 'Impact boost never applies in the air'}
 }
 Assert $sawAir 'Pressure regression includes a real rebound flight'
+$rest=[GptGravityModel]::new();$rest.SetEnergyConversion(0);$rest.SetHorizontalPosition(5000);$rest.FlingFrom(1,1000,-1200)
+for($i=0;$i-lt 1000 -and !$rest.FloorImpacts;$i++){$rest.Advance(1.0/240,2000,20000)}
+for($i=0;$i-lt 24;$i++){$rest.Advance(1.0/240,2000,20000)}
+$before=$rest.HorizontalVelocity
+for($i=0;$i-lt 24;$i++){$rest.Advance(1.0/240,2000,20000)}
+Assert ([Math]::Abs(($before-$rest.HorizontalVelocity)-[GptGravityModel]::GroundFriction*$rest.EffectiveGravity*.1)-lt .1) 'Normal ground drag resumes after deformation completes'
+$rest.FlingFrom(0,600,0);$rest.Advance(.1,2000,20000)
+Assert ([Math]::Abs($rest.HorizontalVelocity-(600-[GptGravityModel]::GroundFriction*$rest.EffectiveGravity*.1))-lt .1) 'Reset clears a previous impact boost'
 'PASS: impact-speed proportional drag, slider scaling/zero, bounded loss and airborne independence'

@@ -1,0 +1,15 @@
+# Impact-speed pressure proxy for floor friction
+
+AI-generated maintenance changes and documentation; insufficiently validated. No independent human review or whole-project coverage measurement.
+
+The user requested greater horizontal friction for faster downward impacts, using a simple proportional approximation rather than a force solver. Downward speed is used as an artistic pressure proxy, not equated with physical force.
+
+At each real impact cache `extra=min(2, incomingDownwardSpeed/600)` in design DIP/s. During supported landing deformation use `pressure=1+extra*(remainingAnimationTime/totalAnimationTime)`. Supported horizontal deceleration becomes `0.18 * groundFrictionMultiplier * pressure * EffectiveGravity`. Thus initial pressure multipliers at 300/600/1200 DIP/s are about 1.5/2/3, capped at 3. They fade linearly to 1 across the existing landing animation. The first impact still applies the separate 0.82 horizontal retention once; subsequent fixed substeps apply time-based friction without repeating collision loss.
+
+Normal sliding uses multiplier 1. Airborne motion receives no ground drag. Slider zero disables both normal and pressure-enhanced sliding drag, while preserving real-impact retention. Releasing stored bounce energy or cancelling/resetting clears the cached boost. No new setting, timer, dependency or per-frame I/O; one bounded ratio is cached at collision and a few scalar operations are added per supported physics substep. Longer landing animations allow friction to act for longer, consistent with the previous supported-ground timing behavior.
+
+RED: new regression failed `Faster downward impacts must produce stronger supported ground drag` before implementation. GREEN: compare equal horizontal speeds after weak/strong downward impacts in both directions; confirm slider proportionality, explicit zero, no reversal, bounded per-step drag, real rebound flight without airborne drag, restoration of ordinary sliding after deformation and reset clearing. Existing repeated-impact-retention fixture now sets sliding friction to zero to isolate the 0.82 impulse rule; stronger drag may legitimately exhaust a low horizontal speed before the third bounce. Separate tests retain continuous-ground-drag checks.
+
+Executed: ground-friction, horizontal-impact, compression-curve, energy-duration, rebound-steps, energy-controls, collision-energy, elastic-impact, tap-compression, animation-speed, landing-easing/cycle, impact-squish, floor-contact, motion-tuning, gravity (637 assertions), gravity-wpf (17 cases) and actual WPF settings menu. Node: 94 passed, 1 existing platform fixture skipped. Strict managed-frames passes unchanged minimum cadence/CPU thresholds and 120-Hz scheduling checks: local processing 95.8 Hz, mean physics 0.249 ms, mean CPU 1.636 ms, mean native placement 3.661 ms, maximum step 28.104 ms. This is a local short measurement, not proof of stable 120 FPS or no dropped frames.
+
+Existing private preferences remain unchanged; only source and generic verification notes are synchronized. Git checkpoints and external bundles preserve rollback. No installer or Release publication.

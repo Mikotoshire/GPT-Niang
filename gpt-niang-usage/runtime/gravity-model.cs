@@ -23,14 +23,14 @@ public sealed class GptGravityModel {
     public void SetEnergyConversion(double percent) {
         EnergyConversion = double.IsNaN(percent) || double.IsInfinity(percent) ? DefaultEnergyConversion : Math.Max(0, Math.Min(85, percent));
     }
-    double visualDepth;
+    double visualDepth, impactFrictionBoost;
     void UpdateImpactDepth() {
         double amount = ImpactSquish * SpringCompression;
         visualDepth = 0.72 * amount / (0.30 + amount);
     }
     bool bounceAfterCompression;
     void ClearSpring() {
-        ImpactEnergy = StoredElasticEnergy = SpringCompression = visualDepth = 0;
+        ImpactEnergy = StoredElasticEnergy = SpringCompression = visualDepth = impactFrictionBoost = 0;
         bounceAfterCompression = false;
     }
     public const double HorizontalRetention = 0.82;
@@ -243,7 +243,10 @@ public sealed class GptGravityModel {
         // or airborne motion. Explicit drag stays stable while HoldOnFloor pins Y.
         if (grounded || landing) {
             double vx = body.LinearVelocity.X;
-            double speed = Math.Max(0, Math.Abs(vx) - GroundFriction * GroundFrictionMultiplier * EffectiveGravity * seconds / Units);
+            // Downward impact speed is a cheap pressure proxy, not a force solver.
+            // Fade the cached boost during floor deformation, then use normal drag.
+            double pressure = landing && impactDuration > 0 ? 1 + impactFrictionBoost * impact / impactDuration : 1;
+            double speed = Math.Max(0, Math.Abs(vx) - GroundFriction * GroundFrictionMultiplier * pressure * EffectiveGravity * seconds / Units);
             body.LinearVelocity = new Vector2((float)(Math.Sign(vx) * speed), body.LinearVelocity.Y);
         }
         if (grounded && !landing) HoldOnFloor();
@@ -260,6 +263,7 @@ public sealed class GptGravityModel {
                     takeoffStretch = TakeoffStretchSeconds;
                 }
                 StoredElasticEnergy = SpringCompression = visualDepth = 0; bounceAfterCompression = false;
+                impactFrictionBoost = 0;
             }
         }
         else if (floorContact && previousVelocity <= 0) {
@@ -268,6 +272,7 @@ public sealed class GptGravityModel {
                 FloorImpacts++;
                 landingCurve = CompressionCurve;
                 impactSpeed = Math.Max(0, -previousVelocity);
+                impactFrictionBoost = Math.Min(2, impactSpeed / 600);
                 ImpactEnergy = 0.5 * impactSpeed * impactSpeed;
                 StoredElasticEnergy = ImpactEnergy * EnergyRetention;
                 SpringCompression = Math.Sqrt(2 * StoredElasticEnergy / SpringStiffness);
