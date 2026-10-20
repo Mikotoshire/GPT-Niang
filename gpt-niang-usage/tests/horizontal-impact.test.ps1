@@ -27,7 +27,7 @@ for($i=0;$i-lt 4000 -and $m.Active;$i++){$m.Advance(1.0/240,900,20000)}
 Assert (!$m.Active -and $m.HorizontalVelocity-eq 0) 'Engine ground friction must eventually settle the remaining slide'
 $ground=[GptGravityModel]::new();$ground.SetHorizontalPosition(5000);$ground.FlingFrom(0,300,0)
 $ground.Advance(1.0/240,900,20000)
-Assert ($ground.FloorImpacts-eq 0 -and $ground.HorizontalVelocity-gt 299) 'Starting a slide on the floor is not a new falling collision'
+Assert ($ground.FloorImpacts-eq 0 -and [Math]::Abs($ground.HorizontalVelocity-(300-[GptGravityModel]::GroundFriction*$ground.EffectiveGravity/240))-lt .01) 'Starting a slide only applies time-based friction, not a falling collision penalty'
 Write-Output 'PASS: floor impacts retain horizontal speed in both directions; one loss per impact; vertical stop preserves sliding; ground friction settles.'
 # AI-generated maintenance checks; insufficiently validated. See AI-NOTICE.md.
 foreach($direction in @(1,-1)){

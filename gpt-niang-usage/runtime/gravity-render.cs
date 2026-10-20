@@ -34,7 +34,7 @@ public sealed class GptGravityRenderLoop {
     public bool CanObserveFrame { get { return IsEnabled && !rendering; } }
     public GptGravityScene Scene { get; set; }
     public event EventHandler Tick;
-    public int TargetFps { get { return 90; } }
+    public int TargetFps { get { return 120; } }
     public long FrameCount { get; private set; }
     public long SlowFrames { get; private set; }
     public double Fps { get { double span=(last-first).TotalSeconds;return span>0?(FrameCount-1)/span:0; } }
@@ -119,7 +119,7 @@ public sealed class GptGravityRenderLoop {
         // placement can block until composition and compress subsequent arrivals.
         // Physics still advances by real elapsed time below.
         double presentation=frame==null?now:frame.RenderingTime.TotalSeconds;
-        // A two-frame token bucket caps sustained work at 90 Hz while retaining
+        // A two-frame token bucket caps sustained work at 120 Hz while retaining
         // normal 60-Hz long/short presentation jitter after a blocked native move.
         // A hard minimum gap would discard valid 8/25-ms pairs averaging 60 Hz.
         if(Scene!=null){

@@ -35,6 +35,10 @@ public sealed class GptGravityModel {
     }
     public const double HorizontalRetention = 0.82;
     public const float GroundFriction = 0.18f;
+    public double GroundFrictionMultiplier { get; private set; }
+    public void SetGroundFriction(double value) {
+        GroundFrictionMultiplier = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0, Math.Min(3, value));
+    }
     public int FloorImpacts { get; private set; }
     public double Height { get; private set; }
     public double Velocity { get; private set; }
@@ -138,22 +142,22 @@ public sealed class GptGravityModel {
     const double MinLandingSeconds = 0.06, MaxLandingSeconds = 0.30, DurationCompressionReference = 0.25;
     double age, held, impact, impactSpeed, impactDuration, relax, releasedX, releasedY;
     double landingEntryX, landingEntryY, takeoffStretch;
-    bool flying, multiple, landing;
+    bool flying, multiple, landing, grounded;
 
-    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; TapCompression=1; EnergyConversion=DefaultEnergyConversion; CompressionCurve=1.5; Reset(); }
+    public GptGravityModel() { GroundFrictionMultiplier=1; GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; TapCompression=1; EnergyConversion=DefaultEnergyConversion; CompressionCurve=1.5; Reset(); }
     public void Reset() {
         CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
         impactSpeed = impactDuration = 0; ClearSpring(); landing = false;
         landingEntryX = landingEntryY = takeoffStretch = 0;
         ScaleX = ScaleY = 1; Rebounds = 0;
-        IsPressed = ReleasePending = Dragging = flying = multiple = false;
+        IsPressed = ReleasePending = Dragging = flying = multiple = grounded = false;
     }
     public void BeginPress() {
         IsPressed = true; ReleasePending = Dragging = flying = multiple = false;
         body.LinearVelocity = Vector2.Zero;
         Velocity = age = held = Charge = impact = relax = 0; Rebounds = 0;
-        ClearSpring(); takeoffStretch = 0; landing = false;
+        ClearSpring(); takeoffStretch = 0; landing = grounded = false;
         UpdatePose();
     }
     public void ReleasePress() {
@@ -165,7 +169,7 @@ public sealed class GptGravityModel {
         IsPressed = ReleasePending = flying = false; Dragging = true;
         body.LinearVelocity = Vector2.Zero;
         Velocity = Charge = held = age = impact = relax = 0; ScaleX = ScaleY = 1;
-        ClearSpring(); takeoffStretch = 0; landing = false;
+        ClearSpring(); takeoffStretch = 0; landing = grounded = false;
     }
     public void DragTo(double height) { Height = Math.Max(0, height); }
     public void DropFrom(double height) {
@@ -180,6 +184,7 @@ public sealed class GptGravityModel {
         body.LinearVelocity = new Vector2((float)(vx/Units),(float)(vy/Units));
         // The stopping threshold must include downward fling energy as well.
         Velocity = vy; PeakHeight = Height + vy*vy/(2*EffectiveGravity);
+        grounded = Height == 0 && vy == 0;
         multiple = true; flying = Height > 0 || vx != 0 || vy != 0;
     }
     public void CancelPress() { DropFrom(Height); }
@@ -236,17 +241,19 @@ public sealed class GptGravityModel {
         // AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
         // Apply mu*g only during supported sliding/landing, not the first impact
         // or airborne motion. Explicit drag stays stable while HoldOnFloor pins Y.
-        if (landing || (wasTouchingFloor && touchingFloor && previousHeight <= 0 && previousVelocity <= 0)) {
+        if (grounded || landing) {
             double vx = body.LinearVelocity.X;
-            double speed = Math.Max(0, Math.Abs(vx) - GroundFriction * EffectiveGravity * seconds / Units);
+            double speed = Math.Max(0, Math.Abs(vx) - GroundFriction * GroundFrictionMultiplier * EffectiveGravity * seconds / Units);
             body.LinearVelocity = new Vector2((float)(Math.Sign(vx) * speed), body.LinearVelocity.Y);
         }
-        if (landing) {
+        if (grounded && !landing) HoldOnFloor();
+        else if (landing) {
             HoldOnFloor();
             if (impact <= 0) {
                 landing = false;
                 // Convert the retained spring energy once, after visual recovery.
                 if (bounceAfterCompression && StoredElasticEnergy > 0) {
+                    grounded = false;
                     Velocity = Math.Sqrt(2 * Math.Min(StoredElasticEnergy, EffectiveGravity * ceiling));
                     body.LinearVelocity = new Vector2(body.LinearVelocity.X, (float)(Velocity / Units));
                     PeakHeight = Velocity * Velocity / (2 * EffectiveGravity); Rebounds++;
@@ -278,6 +285,7 @@ public sealed class GptGravityModel {
                 takeoffStretch = 0;
                 bounceAfterCompression = !stopLanding;
                 landing = true;
+                grounded = true;
                 HoldOnFloor();
             }
             else if (stopLanding) HoldOnFloor();

@@ -159,6 +159,12 @@ function Initialize-WidgetSettingsMenu {
     $g.Slider.Value=$script:gravityStrength
     $g.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:gravityStrength=[Math]::Round($sender.Value,1);$script:settingsMenuUi.GravityStrengthText.Text=$script:gravityStrength.ToString('0.0')+'×';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $g.Panel
+    $f=New-SettingsSlider '底部摩擦力' 0 3 0.1
+    $f.Panel.ToolTip='只降低贴底滑动和触底压缩期间的水平速度；0 关闭滑动摩擦，1 为标准，越大停止越快。撞击时的横向损耗仍保留'
+    $script:settingsMenuUi.GroundFriction=$f.Slider;$script:settingsMenuUi.GroundFrictionText=$f.Value
+    $f.Slider.Value=$script:groundFriction
+    $f.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:groundFriction=[Math]::Round($sender.Value,1);$script:settingsMenuUi.GroundFrictionText.Text=$script:groundFriction.ToString('0.0')+'×';Set-WidgetPhysicsTuning})
+    Add-SettingsPanel $f.Panel
     $e=New-SettingsSlider '起跳能量' 0.25 3 0.05
     $script:settingsMenuUi.ElasticStrength=$e.Slider;$script:settingsMenuUi.ElasticStrengthText=$e.Value
     $e.Panel.ToolTip='只调整手动轻点或长按的起跳能量和停跳阈值；碰撞储能由反弹程度单独控制'
@@ -305,6 +311,7 @@ function Update-WidgetSettingsMenu{
     $script:settingsMenuUi.Mirror.IsChecked=$script:mirrorCharacter
     $script:settingsMenuUi.GravityStrength.Value=$script:gravityStrength;$script:settingsMenuUi.GravityStrengthText.Text=$script:gravityStrength.ToString('0.0')+'×'
     $script:settingsMenuUi.ElasticStrength.Value=$script:elasticStrength;$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×'
+    $script:settingsMenuUi.GroundFriction.Value=$script:groundFriction;$script:settingsMenuUi.GroundFrictionText.Text=$script:groundFriction.ToString('0.0')+'×'
     $script:settingsMenuUi.CompressionCurve.Value=$script:compressionCurve;$script:settingsMenuUi.CompressionCurveText.Text=$script:compressionCurve.ToString('0.00');Update-WidgetCompressionCurvePreview
     $script:settingsMenuUi.EnergyConversion.Value=$script:reboundStrength;$script:settingsMenuUi.EnergyConversionText.Text=$script:reboundStrength.ToString('0')+'%'
     $script:settingsMenuUi.TapCompression.Value=$script:tapCompression;$script:settingsMenuUi.TapCompressionText.Text=$script:tapCompression.ToString('0.00')+'×'

@@ -18,7 +18,14 @@ foreach($strength in @(0,.5,1,3)){
 }
 $m.SetGroundFriction(0);$m.Reset();$m.SetHorizontalPosition(5000);$m.FlingFrom(0,600,0)
 for($i=0;$i-lt 60;$i++){$m.Advance(1.0/60,900,20000)}
-Assert ([Math]::Abs($m.HorizontalVelocity-600)-lt .01) 'Zero disables sliding drag'
+Assert ([Math]::Abs($m.HorizontalVelocity-600)-lt .01) ('Zero disables sliding drag: speed='+$m.HorizontalVelocity+' impacts='+$m.FloorImpacts+' multiplier='+$m.GroundFrictionMultiplier)
+Assert ($m.FloorImpacts-eq 0) 'Persistent floor support never invents a new falling impact'
+$m.FlingFrom(0,0,0)
+for($tap=0;$tap-lt 2;$tap++){
+  $m.BeginPress();$m.ReleasePress();$m.Advance(.1,900,20000);$m.Advance(.1,900,20000);$m.Advance(.1,900,20000)
+  Assert ($m.Height-gt 0) 'A supported body can launch again after pressing'
+  for($i=0;$i-lt 500 -and $m.Active;$i++){$m.Advance(1.0/120,900,20000)}
+}
 foreach($strength in @(0,3)){
   $m.SetGroundFriction($strength);$m.FlingFrom(500,600,0);$m.Advance(.1,900,20000)
   Assert ([Math]::Abs($m.HorizontalVelocity-600)-lt .01) 'Ground drag never slows airborne motion'
