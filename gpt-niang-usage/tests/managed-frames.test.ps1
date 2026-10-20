@@ -22,6 +22,10 @@ public sealed class FrameInputProbe : IDisposable {
   }
   public void Dispose(){CompositionTarget.Rendering-=Observe;}
 }
+public static class AnimationPlacementProbe {
+  public static int Count;
+  public static void Move(int left,int right,int bottom,string anchor){Count++;}
+}
 '@
 function Get-FileHash {throw 'Module-based hash must not be required by the stable launcher'}
 . (Join-Path $AppDir 'runtime\gravity.ps1')
@@ -76,6 +80,9 @@ try{
   $flags=[Reflection.BindingFlags]'Instance,NonPublic'
   $arrivalClock=$script:gravityTimer.GetType().GetField('clock',$flags).GetValue($script:gravityTimer)
   $arrivalClock.Stop()
+  $originalMove=$script:gravityTimer.Scene.Move
+  $script:gravityTimer.Scene.Move=[Delegate]::CreateDelegate([Action[int,int,int,string]],[AnimationPlacementProbe].GetMethod('Move'))
+  [AnimationPlacementProbe]::Count=0
   $renderMethod=$script:gravityTimer.GetType().GetMethod('RenderFrame',$flags)
   foreach($index in 0..5){
     $event=[Activator]::CreateInstance([Windows.Media.RenderingEventArgs],$flags,$null,@([TimeSpan]::FromSeconds(1+$index/60.0)),$null)
@@ -83,6 +90,8 @@ try{
   }
   $script:gravityTimer.Stop()
   if($script:gravityTimer.FrameCount-ne 6){throw 'Burst-delivered 60-Hz presentation frames were dropped by the arrival-clock limiter'}
+  if([AnimationPlacementProbe]::Count-ne 1){throw 'Unchanged animation positions repeatedly invoked native follower placement'}
+  $script:gravityTimer.Scene.Move=$originalMove
   Write-Output 'PASS: six distinct 60-Hz presentation frames survive a burst with a frozen arrival clock'
   $script:gravityTimer.Start();$arrivalClock.Stop()
   # Seven frames in 100 ms (60 Hz), alternating long/short intervals. This is
