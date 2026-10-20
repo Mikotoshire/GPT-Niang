@@ -54,3 +54,34 @@ foreach($value in @($null,0,.5,1,2.3,3,-1,4,'broken',[double]::NaN,[double]::Pos
   Assert ($script:groundFriction-eq $expected) 'Startup preserves valid zero and defaults invalid/old settings'
 }
 'PASS: adjustable ground friction, zero/live/reset/bounds, airborne independence and production save/load'
+# Compare the first supported ten substeps after collisions with identical vx.
+# AI-generated maintenance tests; insufficiently validated. See AI-NOTICE.md.
+function Measure-ImpactDrag([double]$down,[double]$strength=1,[int]$direction=1){
+  $model=[GptGravityModel]::new();$model.SetGroundFriction($strength);$model.SetAnimationSpeed(.25)
+  $model.SetHorizontalPosition(5000);$model.FlingFrom(1,1000*$direction,-$down)
+  for($i=0;$i-lt 1000 -and !$model.FloorImpacts;$i++){$model.Advance(1.0/240,2000,20000)}
+  Assert ($model.FloorImpacts-eq 1) 'Impact fixture reaches the ground once'
+  $before=[Math]::Abs($model.HorizontalVelocity)
+  for($i=0;$i-lt 10;$i++){$model.Advance(1.0/240,2000,20000)}
+  return [pscustomobject]@{Loss=($before-[Math]::Abs($model.HorizontalVelocity));Model=$model}
+}
+foreach($direction in @(1,-1)){
+  $weak=Measure-ImpactDrag 100 1 $direction;$strong=Measure-ImpactDrag 1200 1 $direction
+  Assert ($strong.Loss-gt $weak.Loss*1.8) 'Faster downward impacts must produce stronger supported ground drag'
+  Assert ($strong.Model.HorizontalVelocity*$direction-gt 0) 'Stronger impact drag preserves horizontal direction'
+}
+$zero=Measure-ImpactDrag 1200 0
+Assert ($zero.Loss-lt .01) 'Zero slider also disables pressure-enhanced drag'
+$normal=Measure-ImpactDrag 900 1;$double=Measure-ImpactDrag 900 2
+Assert ([Math]::Abs($double.Loss-2*$normal.Loss)-lt .1) 'Existing slider scales pressure-enhanced drag proportionally'
+# The high speed boost is capped, returns to baseline, and never leaks into air.
+$model=$normal.Model;$limit=[GptGravityModel]::GroundFriction*$model.EffectiveGravity*3/240
+$sawAir=$false
+for($i=0;$i-lt 3000 -and $model.Active;$i++){
+  $before=$model.HorizontalVelocity;$height=$model.Height;$vy=$model.Velocity;$hits=$model.FloorImpacts
+  $model.Advance(1.0/240,2000,20000)
+  if($height-eq 0 -and $vy-eq 0 -and $model.FloorImpacts-eq $hits){Assert (($before-$model.HorizontalVelocity)-le $limit+.01) 'Pressure enhancement is bounded to three times base drag'}
+  if($height-gt 1 -and $model.Height-gt 1 -and $model.FloorImpacts-eq $hits){$sawAir=$true;Assert ([Math]::Abs($model.HorizontalVelocity-$before)-lt .01) 'Impact boost never applies in the air'}
+}
+Assert $sawAir 'Pressure regression includes a real rebound flight'
+'PASS: impact-speed proportional drag, slider scaling/zero, bounded loss and airborne independence'
