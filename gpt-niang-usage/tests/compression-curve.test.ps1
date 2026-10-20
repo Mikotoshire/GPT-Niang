@@ -5,6 +5,15 @@ $library=Join-Path $AppDir 'runtime/vendor/aether/Aether.Physics2D.dll'
 Add-Type -Path $library
 Add-Type -Path (Join-Path $AppDir 'runtime/gravity-model.cs') -ReferencedAssemblies $library
 function Assert($value,$message){if(!$value){throw $message}}
+$natural=[GptGravityModel]::new()
+Assert ($natural.CompressionCurve-eq 1.5) 'Natural default uses gentle initial braking'
+$maxError=0.0
+for($i=0;$i-le 1000;$i++){
+  $t=$i/1000.0
+  $maxError=[Math]::Max($maxError,[Math]::Abs($natural.GetCompressionProgress($t)-[Math]::Sin([Math]::PI*$t/2)))
+}
+Assert ($maxError-lt .021) 'Natural cubic stays within 2.1 percent of quarter-sine displacement'
+Assert ([Math]::Abs($natural.GetCompressionProgress(.5)-.6875)-lt 1e-12) 'Natural midpoint avoids premature near-full squash'
 foreach($curve in @(1.5,1.6,2.25,3)){
   $m=[GptGravityModel]::new();$m.SetCompressionCurve($curve)
   Assert ($m.GetCompressionProgress(0)-eq 0 -and $m.GetCompressionProgress(1)-eq 1) 'Curve endpoints stay fixed'

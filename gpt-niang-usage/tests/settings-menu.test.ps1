@@ -98,6 +98,17 @@ try{
   Assert-Equal $script:settingsMenuUi.CompressionCurveText.Text '3.00' 'Curve label updates'
   Assert-Equal ($script:settingsMenuUi.CompressionCurveLine.Points[6].Y-lt $beforeCurve) $true 'Preview updates with stronger initial compression'
   Assert-Equal $script:energyConversion 55.25 'Curve leaves stored energy setting unchanged'
+  $script:settingsMenuUi.NaturalElasticity.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
+  Assert-Equal $script:compressionCurve 1.5 'Natural preset selects a near-sinusoidal compression'
+  Assert-Equal $script:reboundStrength 75 'Natural preset uses the nearest five-percent reference rebound'
+  Assert-Equal $script:energyConversion 63.75 'Preset keeps legacy retained-energy preference consistent'
+  Assert-Equal $script:squishStrength 1 'Natural preset restores moderate visible deformation'
+  Assert-Equal $script:animationSpeed 1 'Natural preset restores readable base timing'
+  Assert-Equal $script:settingsMenuUi.CompressionCurve.Value 1.5 'Preset refreshes curve slider'
+  Assert-Equal $script:settingsMenuUi.EnergyConversionText.Text '75%' 'Preset refreshes rebound label'
+  Assert-Equal $script:elasticStrength 1.5 'Preset preserves manual launch energy'
+  Assert-Equal $script:gravityStrength 2.2 'Preset preserves user gravity'
+  Assert-Equal $script:tapCompression 1.75 'Preset preserves manual press shape'
   $expected=@('查看额度','换一句台词','刷新额度','编辑我的语录','显示与位置','外观设置','重力与弹性','声音与点击','更新','退出 GPT 娘')
   $actual=@($script:context.Items|Where-Object{$_.Header-is [string]}|ForEach-Object{$_.Header})
   Assert-Equal ($actual-join '|') ($expected-join '|') 'Menu entries and removed title block'
