@@ -115,7 +115,7 @@ $script:statusStamp=0
 $script:offsetRight=0.0;$script:offsetBottom=0.0;$script:offsetLeft=$null;$script:anchor='right';$script:side='right';$script:scale=1.0;$script:collapsed=$true
 $script:soundOn=$true;$script:soundVolume=0.9;$script:bubbleTapAdvance=$false;$script:hideMenu=$false
 $script:followHost=$true;$script:desktopTopmost=$false;$script:desktopLeft=$null;$script:desktopTop=$null
-$script:gravityEnabled=$false;$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0
+$script:gravityEnabled=$false;$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0
 $script:hostReadiness=New-WidgetReadinessState
 $script:bubbleMode='quota';$script:sceneStartedAt=0;$script:sceneDeadline=0;$script:sceneTimer=$null;$script:sceneRevision=0
 $script:resetTimeMode='countdown';$script:resetPhaseTimer=$null
@@ -144,6 +144,7 @@ try{$settings=Get-Content -LiteralPath $settingsFile -Raw -Encoding UTF8 | Conve
   if($null-ne $settings.elasticStrength){$v=[double]$settings.elasticStrength;if(![double]::IsNaN($v) -and $v-ge 0.25 -and $v-le 3){$script:elasticStrength=$v}}
   if($null-ne $settings.squishStrength){try{$v=[double]$settings.squishStrength;if(![double]::IsNaN($v) -and $v-ge 0 -and $v-le 3){$script:squishStrength=$v}}catch{}}
   if($null-ne $settings.animationSpeed){try{$v=[double]$settings.animationSpeed;if(![double]::IsNaN($v) -and $v-ge 0.25 -and $v-le 3){$script:animationSpeed=$v}}catch{}}
+  if($null-ne $settings.tapCompression){try{$v=[double]$settings.tapCompression;if(![double]::IsNaN($v) -and $v-ge 0 -and $v-le 3){$script:tapCompression=$v}}catch{}}
   if($null-ne $settings.gravityEnabled){$script:gravityEnabled=[bool]$settings.gravityEnabled}
   if($null-ne $settings.desktopTopmost){$script:desktopTopmost=[bool]$settings.desktopTopmost}
   if($null-ne $settings.desktopLeft){$script:desktopLeft=[double]$settings.desktopLeft}
@@ -153,7 +154,7 @@ function Write-WidgetJson($file,$value){
   $temp=$file+'.tmp';[IO.File]::WriteAllText($temp,($value|ConvertTo-Json -Depth 6),[Text.UTF8Encoding]::new($false))
   if([IO.File]::Exists($file)){[IO.File]::Replace($temp,$file,($file+'.bak'),$true)}else{[IO.File]::Move($temp,$file)}
 }
-function Save-Settings {Write-WidgetJson $settingsFile @{layoutVersion=2;right=$script:offsetRight;left=$script:offsetLeft;bottom=$script:offsetBottom;anchor=$script:anchor;side=$script:side;scale=$script:scale;collapsed=$script:collapsed;soundOn=$script:soundOn;soundVolume=$script:soundVolume;bubbleTapAdvance=$script:bubbleTapAdvance;hideMenu=$script:hideMenu;colorMode=$script:colorMode;colorChance=$script:colorChance;colorTextChance=$script:colorTextChance;colorPaused=$script:colorPaused;followHost=$script:followHost;desktopTopmost=$script:desktopTopmost;desktopLeft=$script:desktopLeft;desktopTop=$script:desktopTop;gravityEnabled=$script:gravityEnabled;mirrorCharacter=$script:mirrorCharacter;gravityStrength=$script:gravityStrength;elasticStrength=$script:elasticStrength;squishStrength=$script:squishStrength;animationSpeed=$script:animationSpeed}}
+function Save-Settings {Write-WidgetJson $settingsFile @{layoutVersion=2;right=$script:offsetRight;left=$script:offsetLeft;bottom=$script:offsetBottom;anchor=$script:anchor;side=$script:side;scale=$script:scale;collapsed=$script:collapsed;soundOn=$script:soundOn;soundVolume=$script:soundVolume;bubbleTapAdvance=$script:bubbleTapAdvance;hideMenu=$script:hideMenu;colorMode=$script:colorMode;colorChance=$script:colorChance;colorTextChance=$script:colorTextChance;colorPaused=$script:colorPaused;followHost=$script:followHost;desktopTopmost=$script:desktopTopmost;desktopLeft=$script:desktopLeft;desktopTop=$script:desktopTop;gravityEnabled=$script:gravityEnabled;mirrorCharacter=$script:mirrorCharacter;gravityStrength=$script:gravityStrength;elasticStrength=$script:elasticStrength;squishStrength=$script:squishStrength;animationSpeed=$script:animationSpeed;tapCompression=$script:tapCompression}}
 function Get-WidgetPlacementFrame {
   if($script:followHost){return Get-WidgetVisibleFrame}
   $point=if($null-ne $script:desktopLeft -and $null-ne $script:desktopTop){[Drawing.Point]::new([int]$script:desktopLeft,[int]$script:desktopTop)}else{[Drawing.Point]::new(0,0)}
@@ -421,7 +422,13 @@ function Animate-Press([bool]$down) {
     if($down){$script:gravity.BeginPress()}else{$script:gravity.ReleasePress()}
     Start-WidgetGravityTimer;return
   }
-  $x=if($down){1.05}else{1.0};$y=if($down){0.88}else{1.0}
+  # Keep the shared bubble pulse within its original bounds; stronger squash is local to the character.
+  $base=[Math]::Min(1,$script:tapCompression)
+  $x=if($down){1+0.05*$base}else{1.0};$y=if($down){1-0.12*$base}else{1.0}
+  $characterX=if($down){(1+0.05*$script:tapCompression)/$x}else{1.0}
+  $characterY=if($down){(1-0.12*$script:tapCompression)/$y}else{1.0}
+  Animate-Value $script:ui.GravityScale ([Windows.Media.ScaleTransform]::ScaleXProperty) $characterX 220 0 $true
+  Animate-Value $script:ui.GravityScale ([Windows.Media.ScaleTransform]::ScaleYProperty) $characterY 220 0 $true
   Animate-Value $script:ui.PressScale ([Windows.Media.ScaleTransform]::ScaleXProperty) $x 220 0 $true
   Animate-Value $script:ui.PressScale ([Windows.Media.ScaleTransform]::ScaleYProperty) $y 220 0 $true
 }

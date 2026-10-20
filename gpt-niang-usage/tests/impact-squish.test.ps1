@@ -55,7 +55,7 @@ $temporary=Join-Path ([IO.Path]::GetTempPath()) ('squish-setting-'+[Guid]::NewGu
 $script:settingsFile=Join-Path $temporary 'settings.json'
 function Write-WidgetJson($file,$data){[IO.Directory]::CreateDirectory($temporary)|Out-Null;[IO.File]::WriteAllText($file,($data|ConvertTo-Json))}
 try{
-  $script:gravity=[GptGravityModel]::new();$script:gravityStrength=1.6;$script:elasticStrength=1;$script:squishStrength=2.25;$script:animationSpeed=1
+  $script:tapCompression=1.0;$script:gravity=[GptGravityModel]::new();$script:gravityStrength=1.6;$script:elasticStrength=1;$script:squishStrength=2.25;$script:animationSpeed=1
   Set-WidgetPhysicsTuning
   $saved=Get-Content -LiteralPath $script:settingsFile -Raw|ConvertFrom-Json
   Assert ($script:gravity.ImpactSquish-eq 2.25 -and $saved.squishStrength-eq 2.25) 'Production bridge applies and persists slider'

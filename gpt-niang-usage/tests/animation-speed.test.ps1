@@ -52,7 +52,7 @@ $temporary=Join-Path ([IO.Path]::GetTempPath()) ('animation-setting-'+[Guid]::Ne
 $script:settingsFile=Join-Path $temporary 'settings.json'
 function Write-WidgetJson($file,$data){[IO.Directory]::CreateDirectory($temporary)|Out-Null;[IO.File]::WriteAllText($file,($data|ConvertTo-Json))}
 try{
-  $script:gravity=[GptGravityModel]::new();$script:gravityStrength=1.6;$script:elasticStrength=1;$script:squishStrength=1;$script:animationSpeed=.75
+  $script:tapCompression=1.0;$script:gravity=[GptGravityModel]::new();$script:gravityStrength=1.6;$script:elasticStrength=1;$script:squishStrength=1;$script:animationSpeed=.75
   Set-WidgetPhysicsTuning
   $saved=Get-Content -LiteralPath $script:settingsFile -Raw|ConvertFrom-Json
   Assert ($script:gravity.AnimationSpeed-eq .75 -and $saved.animationSpeed-eq .75) 'Production bridge applies and saves speed'

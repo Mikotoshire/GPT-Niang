@@ -159,6 +159,12 @@ function Initialize-WidgetSettingsMenu {
     $e.Slider.Value=$script:elasticStrength
     $e.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:elasticStrength=[Math]::Round($sender.Value,2);$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $e.Panel
+    $t=New-SettingsSlider '单点压缩程度' 0 3 0.05
+    $t.Panel.ToolTip='默认 1×，越大按压初段越扁；0 关闭基础压缩。长按追加形变、蓄力时间和弹跳高度保持独立'
+    $script:settingsMenuUi.TapCompression=$t.Slider;$script:settingsMenuUi.TapCompressionText=$t.Value
+    $t.Slider.Value=$script:tapCompression
+    $t.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:tapCompression=[Math]::Round($sender.Value,2);$script:settingsMenuUi.TapCompressionText.Text=$script:tapCompression.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
+    Add-SettingsPanel $t.Panel
     $q=New-SettingsSlider 'Q弹程度' 0 3 0.05
     $q.Panel.ToolTip='按撞地速度调整触底压扁；0 关闭形变，1 为标准强度。先压缩恢复，再向上弹起'
     $script:settingsMenuUi.SquishStrength=$q.Slider;$script:settingsMenuUi.SquishStrengthText=$q.Value
@@ -265,6 +271,7 @@ function Update-WidgetSettingsMenu{
     $script:settingsMenuUi.Mirror.IsChecked=$script:mirrorCharacter
     $script:settingsMenuUi.GravityStrength.Value=$script:gravityStrength;$script:settingsMenuUi.GravityStrengthText.Text=$script:gravityStrength.ToString('0.0')+'×'
     $script:settingsMenuUi.ElasticStrength.Value=$script:elasticStrength;$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×'
+    $script:settingsMenuUi.TapCompression.Value=$script:tapCompression;$script:settingsMenuUi.TapCompressionText.Text=$script:tapCompression.ToString('0.00')+'×'
     $script:settingsMenuUi.AnimationSpeed.Value=$script:animationSpeed;$script:settingsMenuUi.AnimationSpeedText.Text=$script:animationSpeed.ToString('0.00')+'×'
     $script:settingsMenuUi.SquishStrength.Value=$script:squishStrength;$script:settingsMenuUi.SquishStrengthText.Text=$script:squishStrength.ToString('0.00')+'×'
     $script:settingsMenuUi.ColorLinked.IsChecked=$script:colorMode-eq 'linked';$script:settingsMenuUi.ColorRainbow.IsChecked=$script:colorMode-eq 'rainbow';$script:settingsMenuUi.ColorOriginal.IsChecked=$script:colorMode-eq 'original'

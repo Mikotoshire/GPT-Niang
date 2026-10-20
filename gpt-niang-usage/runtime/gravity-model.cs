@@ -28,6 +28,11 @@ public sealed class GptGravityModel {
     public double GravityMultiplier { get; private set; }
     public double Elasticity { get; private set; }
     // AI-generated maintenance, insufficiently validated; see AI-NOTICE.md.
+    public double TapCompression { get; private set; }
+    public void SetTapCompression(double value) {
+        TapCompression = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0, Math.Min(3, value));
+        UpdatePose();
+    }
     public double AnimationSpeed { get; private set; }
     public void SetAnimationSpeed(double value) {
         AnimationSpeed = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0.25, Math.Min(3, value));
@@ -99,7 +104,7 @@ public sealed class GptGravityModel {
     double landingEntryX, landingEntryY, takeoffStretch;
     bool flying, multiple, landing;
 
-    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; Reset(); }
+    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; TapCompression=1; Reset(); }
     public void Reset() {
         CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
@@ -251,8 +256,8 @@ public sealed class GptGravityModel {
         if (IsPressed || ReleasePending) {
             double t = Math.Min(1, age / CompressionSeconds);
             double ease = t * t * (3 - 2 * t);
-            ScaleY = 1 - 0.12 * ease - 0.4 * Charge;
-            ScaleX = 1 + 0.05 * ease + 0.4 * Charge;
+            ScaleY = 1 - 0.12 * TapCompression * ease - 0.4 * Charge;
+            ScaleX = 1 + 0.05 * TapCompression * ease + 0.4 * Charge;
         } else {
             double stretch = flying ? FlightStretch(Velocity) : 0;
             ScaleX = 1 - stretch * 0.5; ScaleY = 1 + stretch;
