@@ -16,7 +16,7 @@ public sealed class GptGravityScene {
     public Action<int,int,int,string> Move;
     public bool HasPose;
     public double PoseLeft, PoseRight;
-    public int X,Y;
+    public int X,Y,Bottom;
 }
 
 // Model, image pose and native movement stay in C#. Script notifications are limited to 4 Hz.
@@ -95,7 +95,7 @@ public sealed class GptGravityRenderLoop {
             // Compression and rounded subpixel movement can leave the native
             // rectangle unchanged. Keep rendering the pose without repeating
             // host placement/monitor/clipping queries for the same position.
-            if(moved || s.PoseLeft!=left || s.PoseRight!=right)
+            if(moved || s.PoseLeft!=left || s.PoseRight!=right || s.Bottom!=bottom)
                 s.Move((int)Math.Round(left*s.Dpi),(int)Math.Round(right*s.Dpi),bottom,anchor);
         }
         else {
@@ -103,7 +103,7 @@ public sealed class GptGravityRenderLoop {
                 if(!SetWindowPos(s.Widget,IntPtr.Zero,x,y,0,0,0x15))throw new InvalidOperationException("Native animation movement failed");
         }
         if(moved)PositionUpdates++;
-        s.X=x;s.Y=y;s.PoseLeft=left;s.PoseRight=right;s.HasPose=true;
+        s.X=x;s.Y=y;s.Bottom=bottom;s.PoseLeft=left;s.PoseRight=right;s.HasPose=true;
         placementTicks+=Stopwatch.GetTimestamp()-started;
         return s.Model.Active;
     }

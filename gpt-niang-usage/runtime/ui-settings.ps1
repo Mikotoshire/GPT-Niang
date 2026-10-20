@@ -340,8 +340,11 @@ function Set-WidgetMenuBounds {
       $frame=Get-WidgetPlacementFrame;$dpi=Get-WidgetPlacementDpi
       $script:context.Width=[Math]::Max(180,[Math]::Min(328,($frame.Right-$frame.Left)/$dpi-16))
       $script:context.MaxHeight=[Math]::Max(160,[Math]::Min(730,($frame.Bottom-$frame.Top)/$dpi-16))
-      $script:context.Resources['SettingsSubmenuWidth']=[double][Math]::Max(180,[Math]::Min(300,($frame.Right-$frame.Left)/$dpi-16))
-      $script:context.Resources['SettingsSubmenuMaxHeight']=[double][Math]::Max(160,[Math]::Min(600,($frame.Bottom-$frame.Top)/$dpi-16))
+      $submenuWidth=[double][Math]::Max(180,[Math]::Min(300,($frame.Right-$frame.Left)/$dpi-16))
+      $submenuHeight=[double][Math]::Max(160,[Math]::Min(600,($frame.Bottom-$frame.Top)/$dpi-16))
+      # Replacing even an equal resource invalidates dependent submenu layouts.
+      if($script:context.Resources['SettingsSubmenuWidth']-ne $submenuWidth){$script:context.Resources['SettingsSubmenuWidth']=$submenuWidth}
+      if($script:context.Resources['SettingsSubmenuMaxHeight']-ne $submenuHeight){$script:context.Resources['SettingsSubmenuMaxHeight']=$submenuHeight}
     }
   }catch{}
 }

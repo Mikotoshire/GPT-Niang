@@ -657,6 +657,9 @@ $pressMove={param($sender,$event)
   $cursor=New-Object GptWidgetNative+Point;[GptWidgetNative]::GetCursorPos([ref]$cursor)|Out-Null
   $dx=$cursor.X-$script:drag.x;$dy=$cursor.Y-$script:drag.y
   if($dx*$dx+$dy*$dy-lt 9 -and !$script:drag.moved){return}
+  # Moving a window under a captured mouse can deliver another event at the
+  # same screen coordinate. Do not repeat layout/native work for that event.
+  if($script:drag.moved -and $script:drag.ContainsKey('lastCursorX') -and $script:drag.lastCursorX-eq $cursor.X -and $script:drag.lastCursorY-eq $cursor.Y){return}
   if(!$script:drag.moved -and $script:gravityEnabled){Begin-WidgetGravityDrag}
   $script:drag.moved=$true
   if($script:followHost -and $script:hostHandle-eq [IntPtr]::Zero){return}
@@ -669,7 +672,9 @@ $pressMove={param($sender,$event)
   $x=[int][Math]::Max($frame.Left,[Math]::Min($frame.Right-$w,$script:drag.left+$dx))
   $floorPadding=if($script:gravityEnabled){(Get-WidgetGravityPadding)*$script:displayScale*$dpi}else{0}
   $y=[int][Math]::Max($frame.Top,[Math]::Min($frame.Bottom-$h+$floorPadding,$script:drag.top+$dy))
-  [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,$x,$y,0,0,0x15)|Out-Null
+  if([GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,$x,$y,0,0,0x15)){
+    $script:drag.lastCursorX=$cursor.X;$script:drag.lastCursorY=$cursor.Y
+  }
   $script:lastPosition=$null
   if($script:followHost){
     $script:offsetRight=($frame.Right-$x-$w)/$dpi;$script:offsetBottom=($frame.Bottom-$y-$h)/$dpi
