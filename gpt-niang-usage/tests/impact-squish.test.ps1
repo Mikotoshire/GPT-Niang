@@ -22,7 +22,7 @@ for($i=0;$i-lt 300;$i++){
 Assert ($maxDefault-gt 0.04 -and $maxStrong-gt $maxDefault -and $maxStrong-lt 3*$maxDefault) 'Slider increases compression with smooth saturation'
 foreach($m in $models){Assert ($m.ScaleX-eq 1 -and $m.ScaleY-eq 1 -and !$m.Active) 'Landing pulse must fully recover'}
 $m.SetImpactSquish(2.25);$m.Reset();Assert ($m.ImpactSquish-eq 2.25) 'Reset retains the setting'
-foreach($invalid in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetImpactSquish($invalid);Assert ($m.ImpactSquish-eq 1) 'Nonfinite tuning uses default'}
+foreach($invalid in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetImpactSquish($invalid);Assert ($m.ImpactSquish-eq 1.5) 'Nonfinite tuning uses default'}
 $m.SetImpactSquish(-10);Assert ($m.ImpactSquish-eq 0) 'Lower bound'
 $m.SetImpactSquish(99);Assert ($m.ImpactSquish-eq 3) 'Upper bound'
 $models=@([GptGravityModel]::new(),[GptGravityModel]::new());$models[0].SetImpactSquish(0);$models[1].SetImpactSquish(3)

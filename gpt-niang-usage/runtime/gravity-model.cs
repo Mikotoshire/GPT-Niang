@@ -17,7 +17,12 @@ public sealed class GptGravityModel {
     public double StoredElasticEnergy { get; private set; }
     public double SpringCompression { get; private set; }
     public double SpringForce { get { return SpringStiffness * SpringCompression; } }
-    public const double DefaultEnergyConversion = Restitution * Restitution * 100;
+    // Chosen personal defaults; saved valid preferences take precedence.
+    public const double DefaultGravityMultiplier = 1.4, DefaultElasticity = 2.5;
+    public const double DefaultTapCompression = 2, DefaultImpactSquish = 1.5;
+    public const double DefaultAnimationSpeed = 1, DefaultCompressionCurve = 1.5;
+    public const double DefaultGroundFrictionMultiplier = 0.2, DefaultReboundStrength = 65;
+    public const double DefaultEnergyConversion = 0.85 * DefaultReboundStrength;
     public double EnergyConversion { get; private set; }
     public double EnergyRetention { get { return EnergyConversion / 100; } }
     public void SetEnergyConversion(double percent) {
@@ -37,7 +42,7 @@ public sealed class GptGravityModel {
     public const float GroundFriction = 0.18f;
     public double GroundFrictionMultiplier { get; private set; }
     public void SetGroundFriction(double value) {
-        GroundFrictionMultiplier = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0, Math.Min(3, value));
+        GroundFrictionMultiplier = double.IsNaN(value) || double.IsInfinity(value) ? DefaultGroundFrictionMultiplier : Math.Max(0, Math.Min(3, value));
     }
     public int FloorImpacts { get; private set; }
     public double Height { get; private set; }
@@ -56,13 +61,13 @@ public sealed class GptGravityModel {
     // AI-generated maintenance, insufficiently validated; see AI-NOTICE.md.
     public double TapCompression { get; private set; }
     public void SetTapCompression(double value) {
-        TapCompression = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0, Math.Min(3, value));
+        TapCompression = double.IsNaN(value) || double.IsInfinity(value) ? DefaultTapCompression : Math.Max(0, Math.Min(3, value));
         UpdatePose();
     }
     public double CompressionCurve { get; private set; }
     double landingCurve;
     public void SetCompressionCurve(double value) {
-        CompressionCurve = double.IsNaN(value) || double.IsInfinity(value) ? 1.5 : Math.Max(1.5, Math.Min(3, value));
+        CompressionCurve = double.IsNaN(value) || double.IsInfinity(value) ? DefaultCompressionCurve : Math.Max(1.5, Math.Min(3, value));
     }
     public double GetCompressionProgress(double time) { return CompressionProgress(time, CompressionCurve); }
     static double CompressionProgress(double t, double slope) {
@@ -73,18 +78,18 @@ public sealed class GptGravityModel {
     }
     public double AnimationSpeed { get; private set; }
     public void SetAnimationSpeed(double value) {
-        AnimationSpeed = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0.25, Math.Min(3, value));
+        AnimationSpeed = double.IsNaN(value) || double.IsInfinity(value) ? DefaultAnimationSpeed : Math.Max(0.25, Math.Min(3, value));
     }
     public double ImpactSquish { get; private set; }
     public void SetImpactSquish(double value) {
-        ImpactSquish = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0, Math.Min(3, value));
+        ImpactSquish = double.IsNaN(value) || double.IsInfinity(value) ? DefaultImpactSquish : Math.Max(0, Math.Min(3, value));
         UpdateImpactDepth(); UpdatePose();
     }
     public double EffectiveGravity { get { return Gravity * GravityMultiplier; } }
     public double TapApex { get { return TapHeight * Elasticity; } }
     public void SetTuning(double gravity, double elasticity) {
-        GravityMultiplier = double.IsNaN(gravity) || double.IsInfinity(gravity) ? 1.6 : Math.Max(0.5,Math.Min(4,gravity));
-        Elasticity = double.IsNaN(elasticity) || double.IsInfinity(elasticity) ? 1 : Math.Max(0.25,Math.Min(3,elasticity));
+        GravityMultiplier = double.IsNaN(gravity) || double.IsInfinity(gravity) ? DefaultGravityMultiplier : Math.Max(0.5,Math.Min(4,gravity));
+        Elasticity = double.IsNaN(elasticity) || double.IsInfinity(elasticity) ? DefaultElasticity : Math.Max(0.25,Math.Min(3,elasticity));
         if(world != null) world.Gravity = new Vector2(0,(float)(-EffectiveGravity/Units));
     }
     const double Units = 100, FixedStep = 1.0 / 240;
@@ -144,7 +149,7 @@ public sealed class GptGravityModel {
     double landingEntryX, landingEntryY, takeoffStretch;
     bool flying, multiple, landing, grounded;
 
-    public GptGravityModel() { GroundFrictionMultiplier=1; GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; TapCompression=1; EnergyConversion=DefaultEnergyConversion; CompressionCurve=1.5; Reset(); }
+    public GptGravityModel() { GroundFrictionMultiplier=DefaultGroundFrictionMultiplier; GravityMultiplier=DefaultGravityMultiplier; Elasticity=DefaultElasticity; ImpactSquish=DefaultImpactSquish; AnimationSpeed=DefaultAnimationSpeed; TapCompression=DefaultTapCompression; EnergyConversion=DefaultEnergyConversion; CompressionCurve=DefaultCompressionCurve; Reset(); }
     public void Reset() {
         CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;

@@ -44,17 +44,17 @@ function Initialize-WidgetGravity {
   $script:gravity=[GptGravityModel]::new()
   $script:gravityInertia=$false
   $script:gravitySampler=[GptDragVelocity]::new()
-  if($null-eq $script:gravityStrength){$script:gravityStrength=1.6}
-  if($null-eq $script:elasticStrength){$script:elasticStrength=1.0}
-  if($null-eq $script:tapCompression){$script:tapCompression=1.0}
+  if($null-eq $script:gravityStrength){$script:gravityStrength=1.4}
+  if($null-eq $script:elasticStrength){$script:elasticStrength=2.5}
+  if($null-eq $script:tapCompression){$script:tapCompression=2.0}
   if($null-eq $script:animationSpeed){$script:animationSpeed=1.0}
-  if($null-eq $script:squishStrength){$script:squishStrength=1.0}
-  if($null-eq $script:energyConversion){$script:energyConversion=[Math]::Min(85.0,40.96*$script:elasticStrength)}
+  if($null-eq $script:squishStrength){$script:squishStrength=1.5}
+  if($null-eq $script:energyConversion){$script:energyConversion=[GptGravityModel]::DefaultEnergyConversion}
   if($null-eq $script:reboundStrength){$script:reboundStrength=$script:energyConversion/0.85}
   $script:reboundStrength=[int]([Math]::Min(100.0,[Math]::Max(0.0,[Math]::Round($script:reboundStrength/5,0,[MidpointRounding]::AwayFromZero)*5)))
   $script:energyConversion=0.85*$script:reboundStrength
   if($null-eq $script:compressionCurve){$script:compressionCurve=1.5}
-  if($null-eq $script:groundFriction){$script:groundFriction=1.0}
+  if($null-eq $script:groundFriction){$script:groundFriction=0.2}
   $script:gravity.SetGroundFriction($script:groundFriction)
   $script:gravity.SetCompressionCurve($script:compressionCurve)
   $script:gravity.SetEnergyConversion($script:energyConversion)
@@ -141,12 +141,17 @@ function Begin-WidgetGravityDrag {
   $script:gravityTimer.Stop();$script:gravity.BeginDrag();Set-WidgetGravityPose
 }
 function Set-WidgetPhysicsTuning {
-  if($null-eq $script:energyConversion){$script:energyConversion=[Math]::Min(85.0,40.96*$script:elasticStrength)}
+  if($null-eq $script:gravityStrength){$script:gravityStrength=1.4}
+  if($null-eq $script:elasticStrength){$script:elasticStrength=2.5}
+  if($null-eq $script:tapCompression){$script:tapCompression=2.0}
+  if($null-eq $script:squishStrength){$script:squishStrength=1.5}
+  if($null-eq $script:animationSpeed){$script:animationSpeed=1.0}
+  if($null-eq $script:energyConversion){$script:energyConversion=[GptGravityModel]::DefaultEnergyConversion}
   if($null-eq $script:reboundStrength){$script:reboundStrength=$script:energyConversion/0.85}
   $script:reboundStrength=[int]([Math]::Min(100.0,[Math]::Max(0.0,[Math]::Round($script:reboundStrength/5,0,[MidpointRounding]::AwayFromZero)*5)))
   $script:energyConversion=0.85*$script:reboundStrength
   if($null-eq $script:compressionCurve){$script:compressionCurve=1.5}
-  if($null-eq $script:groundFriction){$script:groundFriction=1.0}
+  if($null-eq $script:groundFriction){$script:groundFriction=0.2}
   $script:gravity.SetGroundFriction($script:groundFriction)
   $script:gravity.SetCompressionCurve($script:compressionCurve)
   $script:gravity.SetEnergyConversion($script:energyConversion)

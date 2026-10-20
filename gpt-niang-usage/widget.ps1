@@ -123,10 +123,15 @@ function Get-WidgetEnergyConversionPreference($settings,[double]$legacyStrength=
 }
 function Get-WidgetReboundStrengthPreference($settings,[double]$legacyStrength=1) {
   if($null-ne $settings.reboundStrength){try{$value=[double]$settings.reboundStrength;if(![double]::IsNaN($value) -and $value-ge 0 -and $value-le 100){return [int]([Math]::Round($value/5,0,[MidpointRounding]::AwayFromZero)*5)}}catch{}}
+  # Only migrate the former shared slider when a valid legacy field exists.
+  $hasLegacyEnergy=$false;$hasLegacyStrength=$false
+  if($null-ne $settings.energyConversion){try{$v=[double]$settings.energyConversion;$hasLegacyEnergy=(![double]::IsNaN($v) -and $v-ge 0 -and $v-le 85)}catch{}}
+  if($null-ne $settings.elasticStrength){try{$v=[double]$settings.elasticStrength;$hasLegacyStrength=(![double]::IsNaN($v) -and $v-ge .25 -and $v-le 3)}catch{}}
+  if(!$hasLegacyEnergy -and !$hasLegacyStrength){return 65}
   $energy=Get-WidgetEnergyConversionPreference $settings $legacyStrength
   return [int]([Math]::Round($energy/0.85/5,0,[MidpointRounding]::AwayFromZero)*5)
 }
-$script:gravityEnabled=$false;$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0;$script:energyConversion=42.5;$script:reboundStrength=50;$script:compressionCurve=1.5;$script:groundFriction=1.0
+$script:gravityEnabled=$false;$script:mirrorCharacter=$false;$script:gravityStrength=1.4;$script:elasticStrength=2.5;$script:squishStrength=1.5;$script:animationSpeed=1.0;$script:tapCompression=2.0;$script:energyConversion=55.25;$script:reboundStrength=65;$script:compressionCurve=1.5;$script:groundFriction=0.2
 $script:hostReadiness=New-WidgetReadinessState
 $script:bubbleMode='quota';$script:sceneStartedAt=0;$script:sceneDeadline=0;$script:sceneTimer=$null;$script:sceneRevision=0
 $script:resetTimeMode='countdown';$script:resetPhaseTimer=$null

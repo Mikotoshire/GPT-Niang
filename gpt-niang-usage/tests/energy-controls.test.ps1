@@ -23,7 +23,7 @@ Assert ($low.StoredElasticEnergy-lt $high.StoredElasticEnergy -and $low.SpringCo
 $m=Contact 0
 for($i=0;$i-lt 1000 -and $m.Active;$i++){$m.Advance(1.0/240,1000)}
 Assert (!$m.Active -and $m.Rebounds-eq 0 -and $m.StoredElasticEnergy-eq 0 -and $m.ScaleY-eq 1) 'Zero conversion dissipates impact without bouncing or freezing'
-foreach($invalid in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetEnergyConversion($invalid);Assert ([Math]::Abs($m.EnergyConversion-40.96)-lt 1e-8) 'Invalid efficiency defaults safely'}
+foreach($invalid in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetEnergyConversion($invalid);Assert ([Math]::Abs($m.EnergyConversion-55.25)-lt 1e-8) 'Invalid efficiency defaults safely'}
 $m.SetEnergyConversion(-1);Assert ($m.EnergyConversion-eq 0) 'Lower efficiency bound'
 $m.SetEnergyConversion(100);Assert ($m.EnergyConversion-eq 85) 'Upper efficiency bound retains losses'
 $depths=@()

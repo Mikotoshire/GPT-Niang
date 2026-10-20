@@ -40,6 +40,17 @@ foreach($field in @($fields.Keys)+@('reboundStrength')){Set-Variable -Name $fiel
 $script:gravity=[GptGravityModel]::new()
 Set-WidgetPhysicsTuning
 Assert-Defaults $script:gravity
+foreach($field in @($fields.Keys)+@('reboundStrength')){Set-Variable -Name $field -Scope Script -Value $null}
+$script:gravityEnabled=$false
+Initialize-WidgetGravity
+Assert-Defaults $script:gravity
+$script:gravityTimer.Stop()
+$profile=[GptGravityModel]::new();$profile.BeginPress();$profile.ReleasePress();$peak=0.0
+for($i=0;$i-lt 3000 -and $profile.Active;$i++){$profile.Advance(1.0/240,900);$peak=[Math]::Max($peak,$profile.Height)}
+Assert (!$profile.Active -and [Math]::Abs($peak-60)-lt 1 -and $profile.Rebounds-eq 0) 'Chosen profile tap reaches configured height and settles'
+$profile.DropFrom(500)
+for($i=0;$i-lt 4000 -and $profile.Active;$i++){$profile.Advance(1.0/240,900)}
+Assert (!$profile.Active -and $profile.Rebounds-ge 1 -and $profile.Height-eq 0 -and $profile.ScaleY-eq 1) 'Chosen profile drop rebounds and settles without residual deformation'
 $script:gravityStrength=3;$script:elasticStrength=.5;$script:tapCompression=0;$script:squishStrength=0;$script:animationSpeed=2;$script:reboundStrength=0;$script:groundFriction=0;$script:compressionCurve=3
 Set-WidgetPhysicsTuning
 Assert ($script:gravity.GravityMultiplier-eq 3 -and $script:gravity.Elasticity-eq .5 -and $script:gravity.TapCompression-eq 0 -and $script:gravity.ImpactSquish-eq 0 -and $script:gravity.GroundFrictionMultiplier-eq 0 -and $script:gravity.EnergyConversion-eq 0) 'Bridge preserves explicit custom and zero settings'

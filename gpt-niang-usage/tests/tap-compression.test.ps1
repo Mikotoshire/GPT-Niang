@@ -24,7 +24,7 @@ for($i=0;$i-lt 500;$i++){
   Assert ($models[0].Height-eq $models[2].Height -and $models[0].ScaleY-eq $models[2].ScaleY -and $models[0].ScaleX-eq $models[2].ScaleX) 'Drop and landing squash independent of tap setting'
 }
 $m.SetTapCompression(2.25);$m.Reset();Assert ($m.TapCompression-eq 2.25) 'Reset retains tap setting'
-foreach($invalid in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetTapCompression($invalid);Assert ($m.TapCompression-eq 1) 'Nonfinite value defaults to one'}
+foreach($invalid in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetTapCompression($invalid);Assert ($m.TapCompression-eq 2) 'Nonfinite value uses chosen default'}
 $m.SetTapCompression(-1);Assert ($m.TapCompression-eq 0) 'Lower bound'
 $m.SetTapCompression(100);Assert ($m.TapCompression-eq 3) 'Upper bound'
 $m.BeginPress();$m.Advance(.1,900);$m.SetTapCompression(0)

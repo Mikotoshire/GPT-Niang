@@ -6,7 +6,7 @@ Add-Type -Path $library
 Add-Type -Path (Join-Path $AppDir 'runtime/gravity-model.cs') -ReferencedAssemblies $library
 function Assert($value,$message){if(!$value){throw $message}}
 $m=[GptGravityModel]::new()
-Assert ($m.GroundFrictionMultiplier-eq 1) 'Existing ground drag remains the default'
+Assert ($m.GroundFrictionMultiplier-eq .2) 'Chosen ground drag is the default'
 foreach($strength in @(0,.5,1,3)){
   $m.SetGroundFriction($strength);$m.Reset();$m.SetHorizontalPosition(5000);$m.FlingFrom(0,600,0)
   $m.Advance(1.0/60,900,20000);$before=$m.HorizontalVelocity
@@ -30,7 +30,7 @@ foreach($strength in @(0,3)){
   $m.SetGroundFriction($strength);$m.FlingFrom(500,600,0);$m.Advance(.1,900,20000)
   Assert ([Math]::Abs($m.HorizontalVelocity-600)-lt .01) 'Ground drag never slows airborne motion'
 }
-foreach($value in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetGroundFriction($value);Assert ($m.GroundFrictionMultiplier-eq 1) 'Invalid drag uses default'}
+foreach($value in @([double]::NaN,[double]::PositiveInfinity,[double]::NegativeInfinity)){$m.SetGroundFriction($value);Assert ($m.GroundFrictionMultiplier-eq .2) 'Invalid drag uses default'}
 $m.SetGroundFriction(-1);Assert ($m.GroundFrictionMultiplier-eq 0) 'Lower bound'
 $m.SetGroundFriction(9);Assert ($m.GroundFrictionMultiplier-eq 3) 'Upper bound'
 function Import-Function($file,$name){
@@ -84,7 +84,7 @@ for($i=0;$i-lt 3000 -and $model.Active;$i++){
   if($height-gt 1 -and $model.Height-gt 1 -and $model.FloorImpacts-eq $hits){$sawAir=$true;Assert ([Math]::Abs($model.HorizontalVelocity-$before)-lt .01) 'Impact boost never applies in the air'}
 }
 Assert $sawAir 'Pressure regression includes a real rebound flight'
-$rest=[GptGravityModel]::new();$rest.SetEnergyConversion(0);$rest.SetHorizontalPosition(5000);$rest.FlingFrom(1,1000,-1200)
+$rest=[GptGravityModel]::new();$rest.SetGroundFriction(1);$rest.SetEnergyConversion(0);$rest.SetHorizontalPosition(5000);$rest.FlingFrom(1,1000,-1200)
 for($i=0;$i-lt 1000 -and !$rest.FloorImpacts;$i++){$rest.Advance(1.0/240,2000,20000)}
 for($i=0;$i-lt 24;$i++){$rest.Advance(1.0/240,2000,20000)}
 $before=$rest.HorizontalVelocity
