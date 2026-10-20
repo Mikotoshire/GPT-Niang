@@ -121,7 +121,7 @@ function Get-WidgetEnergyConversionPreference($settings,[double]$legacyStrength=
   if([double]::IsNaN($legacyStrength) -or [double]::IsInfinity($legacyStrength) -or $legacyStrength-lt 0.25 -or $legacyStrength-gt 3){$legacyStrength=1}
   return [Math]::Min(85.0,40.96*$legacyStrength)
 }
-$script:gravityEnabled=$false;$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0;$script:energyConversion=40.96
+$script:gravityEnabled=$false;$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0;$script:energyConversion=40.96;$script:compressionCurve=1.6
 $script:hostReadiness=New-WidgetReadinessState
 $script:bubbleMode='quota';$script:sceneStartedAt=0;$script:sceneDeadline=0;$script:sceneTimer=$null;$script:sceneRevision=0
 $script:resetTimeMode='countdown';$script:resetPhaseTimer=$null
@@ -152,6 +152,7 @@ try{$settings=Get-Content -LiteralPath $settingsFile -Raw -Encoding UTF8 | Conve
   if($null-ne $settings.squishStrength){try{$v=[double]$settings.squishStrength;if(![double]::IsNaN($v) -and $v-ge 0 -and $v-le 3){$script:squishStrength=$v}}catch{}}
   if($null-ne $settings.animationSpeed){try{$v=[double]$settings.animationSpeed;if(![double]::IsNaN($v) -and $v-ge 0.25 -and $v-le 3){$script:animationSpeed=$v}}catch{}}
   if($null-ne $settings.tapCompression){try{$v=[double]$settings.tapCompression;if(![double]::IsNaN($v) -and $v-ge 0 -and $v-le 3){$script:tapCompression=$v}}catch{}}
+  if($null-ne $settings.compressionCurve){try{$v=[double]$settings.compressionCurve;if(![double]::IsNaN($v) -and $v-ge 1.5 -and $v-le 3){$script:compressionCurve=$v}}catch{}}
   if($null-ne $settings.gravityEnabled){$script:gravityEnabled=[bool]$settings.gravityEnabled}
   if($null-ne $settings.desktopTopmost){$script:desktopTopmost=[bool]$settings.desktopTopmost}
   if($null-ne $settings.desktopLeft){$script:desktopLeft=[double]$settings.desktopLeft}
@@ -161,7 +162,7 @@ function Write-WidgetJson($file,$value){
   $temp=$file+'.tmp';[IO.File]::WriteAllText($temp,($value|ConvertTo-Json -Depth 6),[Text.UTF8Encoding]::new($false))
   if([IO.File]::Exists($file)){[IO.File]::Replace($temp,$file,($file+'.bak'),$true)}else{[IO.File]::Move($temp,$file)}
 }
-function Save-Settings {Write-WidgetJson $settingsFile @{layoutVersion=2;right=$script:offsetRight;left=$script:offsetLeft;bottom=$script:offsetBottom;anchor=$script:anchor;side=$script:side;scale=$script:scale;collapsed=$script:collapsed;soundOn=$script:soundOn;soundVolume=$script:soundVolume;bubbleTapAdvance=$script:bubbleTapAdvance;hideMenu=$script:hideMenu;colorMode=$script:colorMode;colorChance=$script:colorChance;colorTextChance=$script:colorTextChance;colorPaused=$script:colorPaused;followHost=$script:followHost;desktopTopmost=$script:desktopTopmost;desktopLeft=$script:desktopLeft;desktopTop=$script:desktopTop;gravityEnabled=$script:gravityEnabled;mirrorCharacter=$script:mirrorCharacter;gravityStrength=$script:gravityStrength;elasticStrength=$script:elasticStrength;squishStrength=$script:squishStrength;animationSpeed=$script:animationSpeed;tapCompression=$script:tapCompression;energyConversion=$script:energyConversion}}
+function Save-Settings {Write-WidgetJson $settingsFile @{layoutVersion=2;right=$script:offsetRight;left=$script:offsetLeft;bottom=$script:offsetBottom;anchor=$script:anchor;side=$script:side;scale=$script:scale;collapsed=$script:collapsed;soundOn=$script:soundOn;soundVolume=$script:soundVolume;bubbleTapAdvance=$script:bubbleTapAdvance;hideMenu=$script:hideMenu;colorMode=$script:colorMode;colorChance=$script:colorChance;colorTextChance=$script:colorTextChance;colorPaused=$script:colorPaused;followHost=$script:followHost;desktopTopmost=$script:desktopTopmost;desktopLeft=$script:desktopLeft;desktopTop=$script:desktopTop;gravityEnabled=$script:gravityEnabled;mirrorCharacter=$script:mirrorCharacter;gravityStrength=$script:gravityStrength;elasticStrength=$script:elasticStrength;squishStrength=$script:squishStrength;animationSpeed=$script:animationSpeed;tapCompression=$script:tapCompression;energyConversion=$script:energyConversion;compressionCurve=$script:compressionCurve}}
 function Get-WidgetPlacementFrame {
   if($script:followHost){return Get-WidgetVisibleFrame}
   $point=if($null-ne $script:desktopLeft -and $null-ne $script:desktopTop){[Drawing.Point]::new([int]$script:desktopLeft,[int]$script:desktopTop)}else{[Drawing.Point]::new(0,0)}

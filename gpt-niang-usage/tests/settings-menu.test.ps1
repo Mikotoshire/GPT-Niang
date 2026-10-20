@@ -2,6 +2,10 @@ param([string]$TestRoot=$PSScriptRoot)
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
 $appDir=Split-Path $TestRoot -Parent
+$library=Join-Path $appDir 'runtime/vendor/aether/Aether.Physics2D.dll'
+Add-Type -Path $library
+Add-Type -Path (Join-Path $appDir 'runtime/gravity-model.cs') -ReferencedAssemblies $library
+$script:gravity=[GptGravityModel]::new()
 . ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path $appDir 'runtime\ui-settings.ps1'),[Text.Encoding]::UTF8)))
 function Assert-Equal($actual,$expected,[string]$message){if($actual-ne $expected){throw "$message : expected '$expected', got '$actual'"}}
 function Save-Settings {}
@@ -10,7 +14,7 @@ function Set-WidgetMenuBounds {}
 function Position-WidgetMenuToHost {}
 function Set-Appearance {}
 function Set-Facing {}
-function Set-WidgetPhysicsTuning {Save-Settings}
+function Set-WidgetPhysicsTuning {$script:gravity.SetCompressionCurve($script:compressionCurve);Save-Settings}
 function Set-WidgetAudioVolume {}
 function Set-WidgetGravityMode([bool]$Enabled){$script:gravityEnabled=$Enabled;Save-Settings}
 function Stop-WidgetAudio {}
@@ -24,7 +28,7 @@ Initialize-WidgetUpdater
 $script:window=New-Object Windows.Window
 $script:collapsed=$true;$script:bubbleMode='quota';$script:followHost=$true;$script:desktopTopmost=$true
 $script:scale=1.0;$script:soundOn=$true;$script:soundVolume=0.9;$script:bubbleTapAdvance=$false;$script:hideMenu=$false
-$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0;$script:energyConversion=40.96
+$script:mirrorCharacter=$false;$script:gravityStrength=1.6;$script:elasticStrength=1.0;$script:squishStrength=1.0;$script:animationSpeed=1.0;$script:tapCompression=1.0;$script:energyConversion=40.96;$script:compressionCurve=1.6
 $script:colorMode='mixed';$script:colorChance=0.5;$script:colorTextChance=3;$script:colorPaused=$false
 try{
   Initialize-WidgetSettingsMenu
@@ -73,6 +77,15 @@ try{
   Assert-Equal $script:energyConversion 65 'Conversion updates preference'
   Assert-Equal $script:settingsMenuUi.EnergyConversionText.Text '65%' 'Conversion displays a percentage'
   Assert-Equal $script:elasticStrength 1.5 'Conversion leaves manual launch energy unchanged'
+  Assert-Equal $script:settingsMenuUi.CompressionCurve.Minimum 1.5 'Curve minimum preserves deceleration'
+  Assert-Equal $script:settingsMenuUi.CompressionCurve.Maximum 3 'Curve upper bound'
+  Assert-Equal $script:settingsMenuUi.CompressionCurveLine.Points.Count 25 'Curve preview samples the actual model'
+  $beforeCurve=$script:settingsMenuUi.CompressionCurveLine.Points[6].Y
+  $script:settingsMenuUi.CompressionCurve.Value=3
+  Assert-Equal $script:compressionCurve 3 'Curve slider updates preference'
+  Assert-Equal $script:settingsMenuUi.CompressionCurveText.Text '3.00' 'Curve label updates'
+  Assert-Equal ($script:settingsMenuUi.CompressionCurveLine.Points[6].Y-lt $beforeCurve) $true 'Preview updates with stronger initial compression'
+  Assert-Equal $script:energyConversion 65 'Curve leaves stored energy setting unchanged'
   $expected=@('查看额度','换一句台词','刷新额度','编辑我的语录','显示与位置','外观设置','重力与弹性','声音与点击','更新','退出 GPT 娘')
   $actual=@($script:context.Items|Where-Object{$_.Header-is [string]}|ForEach-Object{$_.Header})
   Assert-Equal ($actual-join '|') ($expected-join '|') 'Menu entries and removed title block'

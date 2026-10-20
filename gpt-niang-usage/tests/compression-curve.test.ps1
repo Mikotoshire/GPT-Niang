@@ -15,6 +15,15 @@ foreach($curve in @(1.5,1.6,2.25,3)){
     $previous=$next;$previousSpeed=$speed
   }
   Assert ((1-$m.GetCompressionProgress(.999))-lt .00001) 'Compression brakes to zero speed at peak'
+  $m.DropFrom(240)
+  for($i=0;$i-lt 1000 -and !$m.FloorImpacts;$i++){$m.Advance(1.0/240,1000)}
+  $previousY=$m.ScaleY;$previousSpeed=10.0
+  for($i=0;$i-lt 100;$i++){
+    $m.Advance(1.0/240,1000);$speed=$previousY-$m.ScaleY
+    if($speed-lt 0){break}
+    Assert ($speed-le $previousSpeed+1e-8) 'Actual vertical squash including incoming stretch must decelerate'
+    $previousY=$m.ScaleY;$previousSpeed=$speed
+  }
 }
 $a=[GptGravityModel]::new();$b=[GptGravityModel]::new();$a.SetCompressionCurve(1.5);$b.SetCompressionCurve(3)
 Assert ($b.GetCompressionProgress(.25)-gt $a.GetCompressionProgress(.25)+.1) 'Slider changes front loading visibly'
@@ -35,3 +44,33 @@ foreach($invalid in @([double]::NaN,[double]::PositiveInfinity,[double]::Negativ
 $m.SetCompressionCurve(0);Assert ($m.CompressionCurve-eq 1.5) 'Lower bound preserves monotonic deceleration'
 $m.SetCompressionCurve(10);Assert ($m.CompressionCurve-eq 3) 'Upper bound preserves monotonic deceleration'
 'PASS: curve shape, decreasing vertical speed, endpoints, braking, pose-only tuning, no mid-contact jump and validation'
+function Import-TestFunction($file,$name){
+  $tokens=$null;$errors=$null;$ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText($file),[ref]$tokens,[ref]$errors)
+  Assert (!$errors.Count) 'Production source parses'
+  return $ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq $name},$true).Extent.Text
+}
+. ([scriptblock]::Create((Import-TestFunction (Join-Path $AppDir 'runtime/gravity.ps1') 'Set-WidgetPhysicsTuning')))
+. ([scriptblock]::Create((Import-TestFunction (Join-Path $AppDir 'widget.ps1') 'Save-Settings')))
+$tokens=$null;$errors=$null
+$ast=[Management.Automation.Language.Parser]::ParseInput([IO.File]::ReadAllText((Join-Path $AppDir 'widget.ps1')),[ref]$tokens,[ref]$errors)
+$load=$ast.Find({param($n)$n-is [Management.Automation.Language.IfStatementAst] -and $n.Extent.Text.StartsWith('if($null-ne $settings.compressionCurve)')},$true)
+Assert ($null-ne $load) 'Startup loads saved compression curve'
+foreach($value in @($null,0,1.5,1.6,2.25,3,4,'broken',[double]::NaN,[double]::PositiveInfinity)){
+  $settings=@{compressionCurve=$value};$script:compressionCurve=1.6
+  . ([scriptblock]::Create($load.Extent.Text))
+  $expected=if($null-ne $value -and $value-is [ValueType] -and $value-ge 1.5 -and $value-le 3){[double]$value}else{1.6}
+  Assert ($script:compressionCurve-eq $expected) 'Old and invalid curve preferences retain default'
+}
+$temporary=Join-Path ([IO.Path]::GetTempPath()) ('compression-curve-'+[Guid]::NewGuid().ToString('N'))
+$script:settingsFile=Join-Path $temporary 'settings.json'
+function Write-WidgetJson($file,$data){[IO.Directory]::CreateDirectory($temporary)|Out-Null;[IO.File]::WriteAllText($file,($data|ConvertTo-Json))}
+try{
+  $script:gravity=[GptGravityModel]::new();$script:gravityStrength=1.6;$script:elasticStrength=1;$script:squishStrength=1;$script:animationSpeed=1;$script:tapCompression=1;$script:energyConversion=40.96;$script:compressionCurve=2.25
+  Set-WidgetPhysicsTuning
+  $saved=Get-Content -LiteralPath $script:settingsFile -Raw|ConvertFrom-Json
+  Assert ($script:gravity.CompressionCurve-eq 2.25 -and $saved.compressionCurve-eq 2.25) 'Production tuning bridge applies and persists curve'
+  $settings=$saved;$script:compressionCurve=1.6
+  . ([scriptblock]::Create($load.Extent.Text))
+  Assert ($script:compressionCurve-eq 2.25) 'Production startup loader restores the same curve'
+}finally{if(Test-Path -LiteralPath $temporary){Remove-Item -LiteralPath $temporary -Recurse -Force}}
+'PASS: production curve tuning, preference persistence and startup validation'

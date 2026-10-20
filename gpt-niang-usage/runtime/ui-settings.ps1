@@ -185,6 +185,22 @@ function Initialize-WidgetSettingsMenu {
     $a.Slider.Value=$script:animationSpeed
     $a.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:animationSpeed=[Math]::Round($sender.Value,2);$script:settingsMenuUi.AnimationSpeedText.Text=$script:animationSpeed.ToString('0.00')+'×';Set-WidgetPhysicsTuning})
     Add-SettingsPanel $a.Panel
+    $script:settingsMenuUi.CompressionCurveMenu=Add-SettingsSubmenu '压缩曲线' {
+      $r=New-SettingsSlider '压缩减速强度' 1.5 3 0.05
+      $r.Panel.ToolTip='越大，垂直压缩初速越快、越早接近最扁并缓慢收住；末端速度为零。只调整压缩段，下次触底生效；总时长由动画速度控制'
+      $script:settingsMenuUi.CompressionCurve=$r.Slider;$script:settingsMenuUi.CompressionCurveText=$r.Value
+      $r.Slider.Value=$script:compressionCurve
+      $canvas=New-Object Windows.Controls.Canvas;$canvas.Width=200;$canvas.Height=76
+      $axis=New-Object Windows.Shapes.Polyline;$axis.Stroke=[Windows.Media.BrushConverter]::new().ConvertFromString('#DFD1EC');$axis.StrokeThickness=1
+      foreach($point in @([Windows.Point]::new(8,8),[Windows.Point]::new(8,68),[Windows.Point]::new(192,68))){$axis.Points.Add($point)}
+      $canvas.Children.Add($axis)|Out-Null
+      $line=New-Object Windows.Shapes.Polyline;$line.Stroke=[Windows.Media.BrushConverter]::new().ConvertFromString('#9C80B6');$line.StrokeThickness=2
+      $canvas.Children.Add($line)|Out-Null;$script:settingsMenuUi.CompressionCurveLine=$line
+      $r.Panel.Children.Add($canvas)|Out-Null
+      $r.Panel.Children.Add((New-SettingsText '横轴：时间　纵轴：压缩进度' 10 '#927AAB'))|Out-Null
+      $r.Slider.Add_ValueChanged({param($sender,$event)if($script:settingsMenuSync){return};$script:compressionCurve=[Math]::Round($sender.Value,2);$script:settingsMenuUi.CompressionCurveText.Text=$script:compressionCurve.ToString('0.00');Set-WidgetPhysicsTuning;Update-WidgetCompressionCurvePreview})
+      Add-SettingsPanel $r.Panel
+    } -ReturnItem
   } -ReturnItem
   $script:settingsMenuUi.Colors=Add-SettingsSubmenu '配色效果' {
   $script:settingsMenuUi.ColorMixed=Add-SettingsAction '台词与颜色独立随机' {Set-WidgetColorMode 'mixed';Save-Settings;Update-WidgetSettingsMenu} -Description '先抽台词，再抽变色；每句都能触发' -Checkable -ReturnItem
@@ -265,6 +281,11 @@ function New-SettingsSlider([string]$Label,[double]$Minimum,[double]$Maximum,[do
 function Update-WidgetSizePresets{
   foreach($button in $script:settingsMenuUi.SizeButtons){$color=if([Math]::Abs([double]$button.Tag-$script:scale)-lt 0.05){'#E2D2EE'}else{'#F2ECF8'};$button.Background=[Windows.Media.BrushConverter]::new().ConvertFromString($color)}
 }
+function Update-WidgetCompressionCurvePreview {
+  $points=New-Object Windows.Media.PointCollection
+  for($i=0;$i-le 24;$i++){$t=$i/24.0;$points.Add([Windows.Point]::new((8+184*$t),(68-60*$script:gravity.GetCompressionProgress($t))))}
+  $script:settingsMenuUi.CompressionCurveLine.Points=$points
+}
 function Update-WidgetSettingsMenu{
   $script:settingsMenuSync=$true
   try{
@@ -279,6 +300,7 @@ function Update-WidgetSettingsMenu{
     $script:settingsMenuUi.Mirror.IsChecked=$script:mirrorCharacter
     $script:settingsMenuUi.GravityStrength.Value=$script:gravityStrength;$script:settingsMenuUi.GravityStrengthText.Text=$script:gravityStrength.ToString('0.0')+'×'
     $script:settingsMenuUi.ElasticStrength.Value=$script:elasticStrength;$script:settingsMenuUi.ElasticStrengthText.Text=$script:elasticStrength.ToString('0.00')+'×'
+    $script:settingsMenuUi.CompressionCurve.Value=$script:compressionCurve;$script:settingsMenuUi.CompressionCurveText.Text=$script:compressionCurve.ToString('0.00');Update-WidgetCompressionCurvePreview
     $script:settingsMenuUi.EnergyConversion.Value=$script:energyConversion;$script:settingsMenuUi.EnergyConversionText.Text=$script:energyConversion.ToString('0.##')+'%'
     $script:settingsMenuUi.TapCompression.Value=$script:tapCompression;$script:settingsMenuUi.TapCompressionText.Text=$script:tapCompression.ToString('0.00')+'×'
     $script:settingsMenuUi.AnimationSpeed.Value=$script:animationSpeed;$script:settingsMenuUi.AnimationSpeedText.Text=$script:animationSpeed.ToString('0.00')+'×'

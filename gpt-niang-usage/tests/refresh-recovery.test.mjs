@@ -51,7 +51,8 @@ test('a connected silent pipe leaves time for a successful filesystem fallback',
   const snapshot={ok:true,queryOk:true,windows:[{minutes:300,remaining:42}],accountKey:'current'};
   try {
     const result=await requestRefresh({dataDir:dir},'unused',{
-      timeoutMs:300,pollMs:2,startWorker:()=>{
+      // Allow 300 ms for real Windows file I/O after the 90% silent-pipe budget.
+      timeoutMs:3000,pollMs:2,startWorker:()=>{
         starts++;completeRequests(dir,readPendingRequests(dir),snapshot);
       }
     });

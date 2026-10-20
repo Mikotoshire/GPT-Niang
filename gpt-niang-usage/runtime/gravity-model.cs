@@ -55,6 +55,18 @@ public sealed class GptGravityModel {
         TapCompression = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0, Math.Min(3, value));
         UpdatePose();
     }
+    public double CompressionCurve { get; private set; }
+    double landingCurve;
+    public void SetCompressionCurve(double value) {
+        CompressionCurve = double.IsNaN(value) || double.IsInfinity(value) ? 1.6 : Math.Max(1.5, Math.Min(3, value));
+    }
+    public double GetCompressionProgress(double time) { return CompressionProgress(time, CompressionCurve); }
+    static double CompressionProgress(double t, double slope) {
+        if (double.IsNaN(t) || t <= 0) return 0;
+        if (t >= 1) return 1;
+        // Cubic Hermite: start slope 1.5..3, end slope zero; always decelerating.
+        return t * (slope + t * (3 - 2 * slope + t * (slope - 2)));
+    }
     public double AnimationSpeed { get; private set; }
     public void SetAnimationSpeed(double value) {
         AnimationSpeed = double.IsNaN(value) || double.IsInfinity(value) ? 1 : Math.Max(0.25, Math.Min(3, value));
@@ -127,7 +139,7 @@ public sealed class GptGravityModel {
     double landingEntryX, landingEntryY, takeoffStretch;
     bool flying, multiple, landing;
 
-    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; TapCompression=1; EnergyConversion=DefaultEnergyConversion; Reset(); }
+    public GptGravityModel() { GravityMultiplier=1.6; Elasticity=1; ImpactSquish=1; AnimationSpeed=1; TapCompression=1; EnergyConversion=DefaultEnergyConversion; CompressionCurve=1.6; Reset(); }
     public void Reset() {
         CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
@@ -238,6 +250,7 @@ public sealed class GptGravityModel {
             if(!wasTouchingFloor && (previousHeight>0 || previousVelocity<0)){
                 body.LinearVelocity = new Vector2(body.LinearVelocity.X * (float)HorizontalRetention,body.LinearVelocity.Y);
                 FloorImpacts++;
+                landingCurve = CompressionCurve;
                 impactSpeed = Math.Max(0, -previousVelocity);
                 ImpactEnergy = 0.5 * impactSpeed * impactSpeed;
                 StoredElasticEnergy = ImpactEnergy * EnergyRetention;
@@ -291,13 +304,14 @@ public sealed class GptGravityModel {
                 double phase = Math.Max(0, Math.Min(1, 1 - impact / impactDuration));
                 // Compression decelerates into the peak. Longer recovery starts
                 // from rest, accelerates, then brakes before reaching neutral.
+                double compression = CompressionProgress(phase / LandingCompressionShare, landingCurve);
                 double envelope = phase <= LandingCompressionShare
-                    ? Math.Sin(0.5 * Math.PI * phase / LandingCompressionShare)
+                    ? compression
                     : 0.5 * (1 + Math.Cos(Math.PI * (phase - LandingCompressionShare) / (1 - LandingCompressionShare)));
                 // Cached spring compression drives both force and the visual envelope.
                 // Q is an appearance multiplier; visual saturation does not add energy.
                 double pulse = visualDepth * envelope;
-                double entryFade = 1 - SmoothStep(phase / LandingCompressionShare);
+                double entryFade = 1 - compression;
                 ScaleX = 1 + landingEntryX * entryFade + pulse * (0.08 / 0.15);
                 ScaleY = 1 + landingEntryY * entryFade - pulse;
             }
