@@ -56,6 +56,7 @@ try {
   $script:displayScale=1;$script:testDpi=1;$null=Set-WidgetPixelSize 1
   $view=$script:window.Content
   $view.Measure([Windows.Size]::new(378,378));$view.Arrange([Windows.Rect]::new(0,0,378,378));$view.UpdateLayout()
+  $script:gravity.SetTapCompression(3)
   $script:gravity.BeginPress()
   for($i=0;$i-lt 180;$i++){$script:gravity.Advance(1.0/120,700)}
   Set-WidgetGravityPose;$script:window.UpdateLayout()
@@ -66,7 +67,9 @@ try {
     $checks++
   }
   $script:gravity.ReleasePress();Start-WidgetGravityTimer
+  $script:ui.GravityScale.BeginAnimation([Windows.Media.ScaleTransform]::ScaleXProperty,[Windows.Media.Animation.DoubleAnimation]::new(1.2,[Windows.Duration]::new([TimeSpan]::FromSeconds(1))))
   Set-WidgetGravityMode $false
+  if($script:ui.GravityScale.HasAnimatedProperties){throw 'Switching gravity mode must remove ordinary click animation clocks.'}
   if($script:gravity.Active -or $script:gravityTimer.IsEnabled -or $script:ui.GravityScale.ScaleX-ne 1 -or $script:ui.GravityScale.ScaleY-ne 1){throw 'Disabling must stop timer and reset transforms.'}
   if($script:saves-lt 1){throw 'Mode setting must be persisted.'}
   if($script:savedSettings.gravityEnabled-ne $false){throw 'Disabled gravity preference was not serialized.'}
