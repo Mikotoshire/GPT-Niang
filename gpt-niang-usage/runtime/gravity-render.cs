@@ -3,6 +3,81 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows.Media;
 
+// AI-generated input maintenance; insufficiently validated. See AI-NOTICE.md.
+// WPF movement generates many window messages. Only policy messages enter script.
+public sealed class GptWidgetInputFilter : IDisposable {
+    [StructLayout(LayoutKind.Sequential)] struct Point { public int X,Y; }
+    [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr hwnd,ref Point point);
+    readonly System.Windows.Interop.HwndSource source;
+    readonly System.Windows.Interop.HwndSourceHook fallback, hook;
+    public System.Windows.UIElement Root, Character;
+    public GptGravityModel Model;
+    public byte[] AlphaPixels;
+    public int AlphaStride,PixelWidth,PixelHeight;
+    public bool GravityEnabled;
+    public long Messages { get; private set; }
+    public long Forwarded { get; private set; }
+    public long EarlyCatches { get; private set; }
+    public string LastError { get; private set; }
+    bool disposed;
+    public GptWidgetInputFilter(System.Windows.Interop.HwndSource source,System.Windows.Interop.HwndSourceHook fallback) {
+        this.source=source;this.fallback=fallback;hook=Handle;source.AddHook(hook);
+    }
+    bool HitScreen(int x,int y,out bool character) {
+        character=false;
+        var local=Root.PointFromScreen(new System.Windows.Point(x,y));
+        var hit=Root.InputHitTest(local);
+        if(hit==null)return false;
+        if(!Object.ReferenceEquals(hit,Character))return true;
+        if(AlphaPixels!=null && PixelWidth>0 && PixelHeight>0) {
+            var p=Root.TranslatePoint(local,Character);var size=Character.RenderSize;
+            double fit=Math.Max(size.Width/PixelWidth,size.Height/PixelHeight);
+            if(fit<=0)return false;
+            int px=(int)Math.Floor((p.X-(size.Width-PixelWidth*fit)/2)/fit);
+            int py=(int)Math.Floor((p.Y-(size.Height-PixelHeight*fit)/2)/fit);
+            if(px<0 || py<0 || px>=PixelWidth || py>=PixelHeight)return false;
+            long index=(long)py*AlphaStride+px*4+3;
+            if(index<0 || index>=AlphaPixels.Length || AlphaPixels[index]<=10)return false;
+        }
+        character=true;return true;
+    }
+    public IntPtr Handle(IntPtr hwnd,int message,IntPtr wParam,IntPtr lParam,ref bool handled) {
+        if(disposed)return IntPtr.Zero;
+        Messages++;
+        if(message==0x84 && Root!=null && Character!=null && AlphaPixels!=null) {
+            if(Character.IsMouseCaptured)return IntPtr.Zero;
+            try {
+                long packed=lParam.ToInt64();bool character;
+                if(!HitScreen((short)(packed&65535),(short)((packed>>16)&65535),out character)) {
+                    handled=true;return new IntPtr(-1);
+                }
+                return IntPtr.Zero;
+            } catch(Exception e) { LastError=e.GetType().Name; }
+        }
+        if((message==0x201 || message==0x203) && GravityEnabled && Model!=null && Root!=null && Character!=null) {
+            try {
+                long packed=lParam.ToInt64();
+                Point point=new Point{X=(short)(packed&65535),Y=(short)((packed>>16)&65535)};
+                if(ClientToScreen(hwnd,ref point)) {
+                    bool character;
+                    if(HitScreen(point.X,point.Y,out character) && character) {
+                        // Freeze velocity before deferred WPF/PowerShell input routing.
+                        Model.BeginPress();EarlyCatches++;
+                    }
+                }
+            } catch(Exception e) { LastError=e.GetType().Name; }
+        }
+        if(message==0x84 || message==0x21 || message==0x2e0 || message==0x7e || message==0x1a) {
+            Forwarded++;return fallback(hwnd,message,wParam,lParam,ref handled);
+        }
+        return IntPtr.Zero;
+    }
+    public void Dispose() {
+        if(disposed)return;disposed=true;
+        if(!source.IsDisposed)source.RemoveHook(hook);
+    }
+}
+
 // AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
 // One active write and one replaceable pending snapshot; no UI callbacks/runspace.
 public sealed class GptLatestFileWriter {
