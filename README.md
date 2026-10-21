@@ -6,7 +6,7 @@
 
 ## 下载与安装
 
-1. 在[本仓库 Releases](https://github.com/Mikotoshire/GPT-Niang/releases) 下载 `gpt-niang-mikotoshire-v1.4.4-windows.zip`；维护版标记为 Pre-release，供非商业小范围试用。
+1. 在[本仓库 Releases](https://github.com/Mikotoshire/GPT-Niang/releases) 下载 `gpt-niang-mikotoshire-v1.5.0-windows.zip`；维护版标记为 Pre-release，供非商业小范围试用。
 2. 需要 Windows 10/11、Node.js 20+ 和已用你自己的 ChatGPT 账号登录的 Codex 桌面端。Node.js 请从 [nodejs.org](https://nodejs.org/) 获取。安装包不包含 Node.js，也不需要 Python、Git 或开发工具。
 3. 完整解压到准备长期保留的文件夹，再双击根目录 `安装GPT娘.cmd`。安装会注册本地插件、当前用户的登录启动任务和启动快捷方式。插件后台随 Codex 窗口出现显示；请勿直接在 ZIP 内运行或安装后移动文件夹。
 4. 手动打开用 `打开GPT娘.cmd`。停止使用并移除启动与插件注册用 `停用GPT娘.cmd`，偏好数据会保留。
@@ -17,8 +17,8 @@
 
 - 读取 Codex 实际返回的额度窗口，点击查看额度和语录。
 - 60 秒内成功缓存直接展示；获取新数据时保留旧值并显示 ↻，失败显示 ⚠。瞬时故障最多重连一次，两次共用 38 秒上限；刷新按钮可主动查询。
-- 高质量图片缩放、手动镜像、可选重力模式、按压蓄力、惯性、碰撞与滑行。当前源码的重力与弹性默认参数见 [维护笔记](codex.md)，已有合法设置会保留；未打包的源码变更不包含在既有下载包中。
-- 重力和弹性分别调节；当前源码使用有上限的 240 Hz 渲染调度预算，实际呈现帧率依设备与系统变化。[本机流畅度测试记录](docs/testing/render-cadence.md)；此轮改动尚未打包发布。
+- 高质量图片缩放、手动镜像、可选重力模式、按压蓄力、惯性、碰撞与滑行。当前源码的重力与弹性默认参数见 [维护笔记](codex.md)，已有合法设置会保留。
+- 重力和弹性分别调节；当前源码使用有上限的 240 Hz 渲染调度预算，实际呈现帧率依设备与系统变化。[本机流畅度测试记录](docs/testing/render-cadence.md)。
 - 本地额度诊断记录失败阶段、耗时和恢复情况，双击 `查看额度诊断.cmd` 查看。
 - 此次仅发布 Windows 包，未发布或验证 Mac 维护版。新设备完整安装、Windows 注销登录及 Codex 退出重开需要试用验收。额度接口仍可能临时超时。
 
@@ -30,7 +30,7 @@
 
 升级前在本机备份原安装目录与偏好，不要将包含机器配置的备份上传 GitHub。先运行原目录的 `停用GPT娘.cmd`，把新 ZIP 内 `GPT-Niang-Mikotoshire` 的内容覆盖到同一安装目录，保留 ZIP 未包含的机器配置，再运行 `安装GPT娘.cmd`。勿同时运行两个副本。
 
-本次 1.4.4 与 1.4.3 的运行文件清单、偏好格式相同。如需回退，先停用 1.4.4，再用[1.4.3 Release](https://github.com/Mikotoshire/GPT-Niang/releases/tag/mikotoshire-v1.4.3-preview.1) 的原 ZIP 按相同方式覆盖同一目录并重新安装；必要时从本机备份恢复偏好。核对同一 Release 的 SHA256、包内 `SOURCE.json` 和 `FILE-MANIFEST.json`，再检查挂件可见和额度查询。旧版本仍可能保留其已知问题，回退不代表它更正确。后续若数据格式或文件清单改变，须重新制定迁移与回退流程，不能直接套用本次方法。
+本次 1.5.0 增加弹性、动画与摩擦设置；已有合法偏好优先，旧设置会按兼容逻辑读取。运行文件清单与 1.4.4 相同。需要回退时，先停用新版，再将 [1.4.4 原 ZIP](https://github.com/Mikotoshire/GPT-Niang/releases/tag/mikotoshire-v1.4.4-preview.1) 覆盖到同一目录并重新安装，恢复升级前的本机偏好备份。旧版不会理解新版全部设置；新增字段可能保留但不生效，手感可能变化。核对同页 SHA256、包内 SOURCE.json 和 FILE-MANIFEST.json；旧版已知问题仍存在。
 
 源码修正通过新提交记录；不强制推送或移动旧发布标签，不覆盖旧版附件。每个新版本对应独立标签、完整源码提交和安装包校验值，便于比较、复现及选择旧版。
 
