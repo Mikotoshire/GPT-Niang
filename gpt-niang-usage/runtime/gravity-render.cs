@@ -203,6 +203,29 @@ public sealed class GptDragMotion {
     }
 }
 
+// AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
+// Preserve the script's existing hit tests. Unrelated messages need no runspace entry.
+public sealed class GptWidgetMessageRouter {
+    readonly System.Windows.Interop.HwndSourceHook next;
+    readonly System.Windows.Interop.HwndSourceHook hook;
+    public long Messages { get; private set; }
+    public long ScriptMessages { get; private set; }
+    public System.Windows.Interop.HwndSourceHook Hook { get { return hook; } }
+    public GptWidgetMessageRouter(System.Windows.Interop.HwndSourceHook next) {
+        if(next==null)throw new ArgumentNullException("next");
+        this.next=next;hook=Route;
+    }
+    IntPtr Route(IntPtr hwnd,int message,IntPtr w,IntPtr l,ref bool handled) {
+        Messages++;
+        switch(message) {
+            case 0x84: case 0x21: case 0x2E0: case 0x7E: case 0x1A:
+                ScriptMessages++;
+                return next(hwnd,message,w,l,ref handled);
+            default:return IntPtr.Zero;
+        }
+    }
+}
+
 // Configuration is refreshed by PowerShell at input/layout boundaries, never per frame.
 public sealed class GptGravityScene {
     public GptGravityModel Model;

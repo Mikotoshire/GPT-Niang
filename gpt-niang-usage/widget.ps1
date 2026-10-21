@@ -658,7 +658,8 @@ $script:messageHook=[Windows.Interop.HwndSourceHook]{param($hwnd,$msg,$w,$l,[ref
   }
   if($msg-eq 0x21){$handled.Value=$true;return [IntPtr]3};return [IntPtr]::Zero
 }
-$source.AddHook($script:messageHook)
+$script:messageRouter=[GptWidgetMessageRouter]::new($script:messageHook)
+$source.AddHook($script:messageRouter.Hook)
 Initialize-WidgetUpdater
 Initialize-WidgetGravity
 Initialize-WidgetSettingsMenu
@@ -888,7 +889,7 @@ function Tick-Widget {
   if($placementWatch){$placementWatch.Stop();$script:frameProbe.RecordWork('placement',$placementWatch.Elapsed.TotalMilliseconds)}
   if($now-$script:lastPresence-ge 1000){
     $persistenceWatch=if($maintenanceWatch){[Diagnostics.Stopwatch]::StartNew()}else{$null}
-    Write-WidgetPresence @{visible=[bool]$visible;at=$now;host=$script:hostHandle.ToInt64();widget=$script:widgetHandle.ToInt64();pid=$PID;followHost=$script:followHost;gravity=@{targetFps=$script:gravityTimer.TargetFps;renderFps=$script:gravityTimer.Fps;frameCount=$script:gravityTimer.FrameCount;maxStepMs=$script:gravityTimer.MaxStepMs;meanStepMs=$script:gravityTimer.MeanStepMs;enabled=$script:gravityEnabled;height=$script:gravity.Height;velocity=$script:gravity.Velocity;charge=$script:gravity.Charge;rebounds=$script:gravity.Rebounds;active=$script:gravity.Active};follow=@{ready=$script:hostFollower.Ready;events=$script:hostFollower.MovementEvents;mode='native-immediate';animationPaddingDip=14};scene=@{open=!$script:collapsed;mode=$script:bubbleMode;resetTimeMode=$script:resetTimeMode;startedAt=$script:sceneStartedAt;closesAt=$script:sceneDeadline;shortReset=$script:ui.ShortReset.Text;weekReset=$script:ui.WeekReset.Text}}
+    Write-WidgetPresence @{visible=[bool]$visible;at=$now;host=$script:hostHandle.ToInt64();widget=$script:widgetHandle.ToInt64();pid=$PID;followHost=$script:followHost;messageRouting=@{native=$script:messageRouter.Messages;script=$script:messageRouter.ScriptMessages};gravity=@{targetFps=$script:gravityTimer.TargetFps;renderFps=$script:gravityTimer.Fps;frameCount=$script:gravityTimer.FrameCount;maxStepMs=$script:gravityTimer.MaxStepMs;meanStepMs=$script:gravityTimer.MeanStepMs;enabled=$script:gravityEnabled;height=$script:gravity.Height;velocity=$script:gravity.Velocity;charge=$script:gravity.Charge;rebounds=$script:gravity.Rebounds;active=$script:gravity.Active};follow=@{ready=$script:hostFollower.Ready;events=$script:hostFollower.MovementEvents;mode='native-immediate';animationPaddingDip=14};scene=@{open=!$script:collapsed;mode=$script:bubbleMode;resetTimeMode=$script:resetTimeMode;startedAt=$script:sceneStartedAt;closesAt=$script:sceneDeadline;shortReset=$script:ui.ShortReset.Text;weekReset=$script:ui.WeekReset.Text}}
     if($persistenceWatch){$persistenceWatch.Stop();$script:frameProbe.RecordWork('persistence',$persistenceWatch.Elapsed.TotalMilliseconds)}
     Update-Quota;$script:lastPresence=$now
     Read-DisplayRequest
