@@ -715,7 +715,7 @@ $pressMove={param($sender,$event)
   $x=[int][Math]::Max($frame.Left,[Math]::Min($frame.Right-$w,$script:drag.left+$dx))
   $floorPadding=if($script:gravityEnabled){(Get-WidgetGravityPadding)*$script:displayScale*$dpi}else{0}
   $y=[int][Math]::Max($frame.Top,[Math]::Min($frame.Bottom-$h+$floorPadding,$script:drag.top+$dy))
-  if([GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,$x,$y,0,0,0x15)){
+  if([GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,$x,$y,0,0,0x415)){
     $script:drag.lastCursorX=$cursor.X;$script:drag.lastCursorY=$cursor.Y
   }
   $script:lastPosition=$null
@@ -867,7 +867,7 @@ function Tick-Widget {
       $y=[int][Math]::Max($frame.Top,[Math]::Min($frame.Bottom-$h+$floorPadding,$desiredY))
       $position="$($script:hostHandle):$x,$y,$w,$h"
       if($position-ne $script:lastPosition){
-        [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,$x,$y,0,0,0x15)|Out-Null
+        [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,$x,$y,0,0,0x415)|Out-Null
         $script:lastPosition=$position
         if($script:context.IsOpen){Set-WidgetMenuBounds;Position-WidgetMenuToHost}
       }

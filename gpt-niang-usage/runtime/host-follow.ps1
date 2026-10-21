@@ -147,7 +147,8 @@ public sealed class GptWidgetHostFollower : IDisposable {
   if(!GetWindowRect(widget,out current)||current.Left!=x||current.Top!=y){
    // Position only: WPF owns size and rendering. No resize, activation or
    // z-order changes, and no queued asynchronous SetWindowPos operation.
-   if(!SetWindowPos(widget,IntPtr.Zero,x,y,0,0,0x15))return false;
+   // SWP_NOSENDCHANGING skips pre-change negotiation, not completion/DPI notifications.
+   if(!SetWindowPos(widget,IntPtr.Zero,x,y,0,0,0x415))return false;
    PositionChanges++;
   }
   if(hiddenByHost){ShowWindow(widget,4);hiddenByHost=false;}

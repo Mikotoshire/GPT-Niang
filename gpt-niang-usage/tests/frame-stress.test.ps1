@@ -88,6 +88,19 @@ $move=$ast.Find({param($n)$n-is [Management.Automation.Language.AssignmentStatem
 $moveText=$move.Right.Extent.Text.Trim();$moveText=$moveText.Substring(1,$moveText.Length-2)
 $moveText=$moveText.Replace('[GptWidgetNative]::GetCursorPos([ref]$cursor)|Out-Null','$cursor.X=$script:stressCursorX;$cursor.Y=$script:stressCursorY')
 $script:stressDrag=[scriptblock]::Create($moveText)
+# Include the production native hook: otherwise movement omits script-message overhead.
+foreach($name in @('Test-GirlAlpha','Test-WidgetHit')){
+  $node=$ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq $name},$true)
+  . ([scriptblock]::Create($node.Extent.Text))
+}
+$bitmap=$script:ui.Girl.Source
+$script:alphaBitmap=[Windows.Media.Imaging.FormatConvertedBitmap]::new($bitmap,[Windows.Media.PixelFormats]::Bgra32,$null,0)
+$script:alphaStride=$bitmap.PixelWidth*4;$script:alphaPixels=New-Object byte[] ($script:alphaStride*$bitmap.PixelHeight)
+$script:alphaBitmap.CopyPixels($script:alphaPixels,$script:alphaStride,0)
+$hookNode=$ast.Find({param($n)$n-is [Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text-eq '$script:messageHook'},$true)
+. ([scriptblock]::Create($hookNode.Extent.Text))
+$fixtureHookSource=[Windows.Interop.HwndSource]::FromHwnd($script:widgetHandle)
+$fixtureHookSource.AddHook($script:messageHook)
 $reports=@();$driver=$null;$finish=$null;$script:frameProbe=$null
 try{
   foreach($phase in @('bounce','drag','menu','quota')){
@@ -131,6 +144,7 @@ try{
   if($RequireSmooth60 -and @($reports|Where-Object{!$_.smooth60Candidate}).Count){throw 'Smooth-60 stress acceptance failed; inspect every phase report instead of relying on average FPS'}
 }finally{
   if($driver){$driver.Stop()};if($finish){$finish.Stop()};if($script:frameProbe){$script:frameProbe.Dispose()}
+  $fixtureHookSource.RemoveHook($script:messageHook)
   $script:gravityTimer.Stop();$script:gravitySampler.Stop();$script:context.IsOpen=$false;$script:window.Close()
   if($HostMode){$script:hostFollower.Dispose();[FrameStressHost]::DestroyWindow($script:hostHandle)|Out-Null}
   $temporary=[IO.Path]::GetFullPath($script:dataDir)
