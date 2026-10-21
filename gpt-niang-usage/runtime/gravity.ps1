@@ -121,7 +121,6 @@ function Set-WidgetGravityMode([bool]$Enabled) {
   if($script:ui.MotionOffset){$script:ui.MotionOffset.X=0;$script:ui.MotionOffset.Y=0}
   $script:gravitySampler.Stop()
   $script:gravityEnabled=$Enabled
-  if($script:inputFilter){$script:inputFilter.GravityEnabled=$Enabled}
   $script:gravityInertia=$false
   $script:gravityTimer.Stop()
   Set-AnimatedValue $script:ui.PressScale ([Windows.Media.ScaleTransform]::ScaleXProperty) 1

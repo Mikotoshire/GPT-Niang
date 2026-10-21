@@ -658,13 +658,9 @@ $script:messageHook=[Windows.Interop.HwndSourceHook]{param($hwnd,$msg,$w,$l,[ref
   }
   if($msg-eq 0x21){$handled.Value=$true;return [IntPtr]3};return [IntPtr]::Zero
 }
-$script:inputFilter=[GptWidgetInputFilter]::new($source,$script:messageHook)
-$script:inputFilter.Root=$script:ui.Root;$script:inputFilter.Character=$script:ui.Girl
-$script:inputFilter.AlphaPixels=$script:alphaPixels;$script:inputFilter.AlphaStride=$script:alphaStride
-$script:inputFilter.PixelWidth=$bitmap.PixelWidth;$script:inputFilter.PixelHeight=$bitmap.PixelHeight
+$source.AddHook($script:messageHook)
 Initialize-WidgetUpdater
 Initialize-WidgetGravity
-$script:inputFilter.Model=$script:gravity;$script:inputFilter.GravityEnabled=$script:gravityEnabled
 Initialize-WidgetSettingsMenu
 $script:ui.Refresh.Add_Click({param($sender,$event)Request-Refresh;Restart-SceneTtl;$script:ui.Status.Text='正在刷新额度…';$event.Handled=$true})
 $script:ui.MenuButton.Add_Click({Open-WidgetMenu})
@@ -681,14 +677,12 @@ foreach($control in @($script:ui.Girl,$script:ui.MenuButton)){
 $script:context.Add_Closed({$script:menuTimer.Start()})
 foreach($control in @($script:ui.Bubble,$script:ui.Tail,$script:ui.TailNear)){$control.Add_MouseLeftButtonUp({param($sender,$event)Next-Bubble;$event.Handled=$true})}
 $pressDown={param($sender,$event)
-  if(!$sender.CaptureMouse()){if($script:gravityEnabled){Release-WidgetGravityDrop -Cancel};return}
-  Sync-WidgetGravityPosition
   $script:hostFollower.Suspend()
   $script:gravityInertia=$false
   $cursor=[GptWidgetNative+Point]::new();[GptWidgetNative]::GetCursorPos([ref]$cursor)|Out-Null
   $rect=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
   $script:drag=@{x=$cursor.X;y=$cursor.Y;left=$rect.Left;top=$rect.Top;moved=$false;control=$sender}
-  Animate-Press $true;Play-WidgetPressSound;$event.Handled=$true
+  $sender.CaptureMouse()|Out-Null;Animate-Press $true;Play-WidgetPressSound;$event.Handled=$true
 }
 $pressMove={param($sender,$event)
   $dragWatch=if($script:frameProbe -and $script:frameProbe.IsRunning){[Diagnostics.Stopwatch]::StartNew()}else{$null}
@@ -797,7 +791,6 @@ function Stop-WidgetRuntime {
   if($script:frameProbe){try{Complete-WidgetFrameProbe -Force}catch{Write-Warning 'Performance report could not be saved during shutdown.'}}
   if($script:gravitySampler){$script:gravitySampler.Stop()}
   if($script:runtimeClosed){return};$script:runtimeClosed=$true
-  try{if($script:inputFilter){$script:inputFilter.Dispose()}}catch{}
   try{if($script:hostFollower){$script:hostFollower.Dispose()}}catch{}
   foreach($timer in @($script:timer,$script:hostEventTimer,$script:menuTimer,$script:sceneTimer,$script:resetPhaseTimer,$script:closeTimer,$script:gravityTimer)){try{if($timer){$timer.Stop()}}catch{}}
   try{Stop-WidgetAudio}catch{}
@@ -895,7 +888,7 @@ function Tick-Widget {
   if($placementWatch){$placementWatch.Stop();$script:frameProbe.RecordWork('placement',$placementWatch.Elapsed.TotalMilliseconds)}
   if($now-$script:lastPresence-ge 1000){
     $persistenceWatch=if($maintenanceWatch){[Diagnostics.Stopwatch]::StartNew()}else{$null}
-    Write-WidgetPresence @{visible=[bool]$visible;at=$now;host=$script:hostHandle.ToInt64();widget=$script:widgetHandle.ToInt64();pid=$PID;followHost=$script:followHost;input=@{messages=$script:inputFilter.Messages;forwarded=$script:inputFilter.Forwarded;earlyCatches=$script:inputFilter.EarlyCatches;error=$script:inputFilter.LastError};gravity=@{targetFps=$script:gravityTimer.TargetFps;renderFps=$script:gravityTimer.Fps;frameCount=$script:gravityTimer.FrameCount;maxStepMs=$script:gravityTimer.MaxStepMs;meanStepMs=$script:gravityTimer.MeanStepMs;enabled=$script:gravityEnabled;height=$script:gravity.Height;velocity=$script:gravity.Velocity;charge=$script:gravity.Charge;rebounds=$script:gravity.Rebounds;active=$script:gravity.Active};follow=@{ready=$script:hostFollower.Ready;events=$script:hostFollower.MovementEvents;mode='native-immediate';animationPaddingDip=14};scene=@{open=!$script:collapsed;mode=$script:bubbleMode;resetTimeMode=$script:resetTimeMode;startedAt=$script:sceneStartedAt;closesAt=$script:sceneDeadline;shortReset=$script:ui.ShortReset.Text;weekReset=$script:ui.WeekReset.Text}}
+    Write-WidgetPresence @{visible=[bool]$visible;at=$now;host=$script:hostHandle.ToInt64();widget=$script:widgetHandle.ToInt64();pid=$PID;followHost=$script:followHost;gravity=@{targetFps=$script:gravityTimer.TargetFps;renderFps=$script:gravityTimer.Fps;frameCount=$script:gravityTimer.FrameCount;maxStepMs=$script:gravityTimer.MaxStepMs;meanStepMs=$script:gravityTimer.MeanStepMs;enabled=$script:gravityEnabled;height=$script:gravity.Height;velocity=$script:gravity.Velocity;charge=$script:gravity.Charge;rebounds=$script:gravity.Rebounds;active=$script:gravity.Active};follow=@{ready=$script:hostFollower.Ready;events=$script:hostFollower.MovementEvents;mode='native-immediate';animationPaddingDip=14};scene=@{open=!$script:collapsed;mode=$script:bubbleMode;resetTimeMode=$script:resetTimeMode;startedAt=$script:sceneStartedAt;closesAt=$script:sceneDeadline;shortReset=$script:ui.ShortReset.Text;weekReset=$script:ui.WeekReset.Text}}
     if($persistenceWatch){$persistenceWatch.Stop();$script:frameProbe.RecordWork('persistence',$persistenceWatch.Elapsed.TotalMilliseconds)}
     Update-Quota;$script:lastPresence=$now
     Read-DisplayRequest

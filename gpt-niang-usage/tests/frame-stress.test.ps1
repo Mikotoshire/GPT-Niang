@@ -1,4 +1,4 @@
-param([string]$AppDir=(Split-Path $PSScriptRoot -Parent),[ValidateRange(3,30)][int]$SecondsPerPhase=6,[string]$ReportFile,[switch]$Hidden,[switch]$RequireSmooth60,[switch]$DefaultProfile,[switch]$HostMode,[switch]$LegacyMessageHook)
+param([string]$AppDir=(Split-Path $PSScriptRoot -Parent),[ValidateRange(3,30)][int]$SecondsPerPhase=6,[string]$ReportFile,[switch]$Hidden,[switch]$RequireSmooth60,[switch]$DefaultProfile,[switch]$HostMode)
 # AI-generated diagnostic fixture; insufficiently validated. Uses fictional data only.
 $ErrorActionPreference='Stop'
 Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase
@@ -88,38 +88,6 @@ $move=$ast.Find({param($n)$n-is [Management.Automation.Language.AssignmentStatem
 $moveText=$move.Right.Extent.Text.Trim();$moveText=$moveText.Substring(1,$moveText.Length-2)
 $moveText=$moveText.Replace('[GptWidgetNative]::GetCursorPos([ref]$cursor)|Out-Null','$cursor.X=$script:stressCursorX;$cursor.Y=$script:stressCursorY')
 $script:stressDrag=[scriptblock]::Create($moveText)
-# Include the real production native hook; previous fixtures omitted this path.
-foreach($name in @('Test-GirlAlpha','Test-WidgetHit')){
-  $node=$ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq $name},$true)
-  . ([scriptblock]::Create($node.Extent.Text))
-}
-$bitmap=$script:ui.Girl.Source
-$alpha=[Windows.Media.Imaging.FormatConvertedBitmap]::new($bitmap,[Windows.Media.PixelFormats]::Bgra32,$null,0)
-$script:alphaStride=$bitmap.PixelWidth*4;$script:alphaPixels=[byte[]]::new($script:alphaStride*$bitmap.PixelHeight)
-$alpha.CopyPixels($script:alphaPixels,$script:alphaStride,0)
-$hookNode=$ast.Find({param($n)$n-is [Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text-eq '$script:messageHook'},$true)
-. ([scriptblock]::Create($hookNode.Extent.Text))
-$nativeSource=[Windows.Interop.HwndSource]::FromHwnd($script:widgetHandle)
-$script:inputFilter=$null
-if($LegacyMessageHook){$nativeSource.AddHook($script:messageHook)}else{
-  $script:inputFilter=[GptWidgetInputFilter]::new($nativeSource,$script:messageHook)
-  $script:inputFilter.Root=$script:ui.Root;$script:inputFilter.Character=$script:ui.Girl
-  $script:inputFilter.AlphaPixels=$script:alphaPixels;$script:inputFilter.AlphaStride=$script:alphaStride
-  $script:inputFilter.PixelWidth=$bitmap.PixelWidth;$script:inputFilter.PixelHeight=$bitmap.PixelHeight
-  $script:inputFilter.Model=$script:gravity;$script:inputFilter.GravityEnabled=$true
-}
-# Exercise moving-image hit testing each frame without moving the user's mouse.
-Add-Type -ReferencedAssemblies @([Windows.Media.CompositionTarget].Assembly.Location,[Windows.DependencyObject].Assembly.Location) -TypeDefinition @'
-using System;using System.Runtime.InteropServices;using System.Windows;using System.Windows.Media;
-public sealed class GptStressHover : IDisposable {
- [DllImport("user32.dll")]static extern IntPtr SendMessage(IntPtr h,int msg,IntPtr w,IntPtr l);
- readonly IntPtr hwnd;readonly UIElement girl;
- public GptStressHover(IntPtr hwnd,UIElement girl){this.hwnd=hwnd;this.girl=girl;CompositionTarget.Rendering+=Render;}
- void Render(object sender,EventArgs args){var p=girl.PointToScreen(new Point(100,150));long x=(int)Math.Round(p.X),y=(int)Math.Round(p.Y);SendMessage(hwnd,0x84,IntPtr.Zero,new IntPtr(((y&65535)<<16)|(x&65535)));}
- public void Dispose(){CompositionTarget.Rendering-=Render;}
-}
-'@
-$hover=[GptStressHover]::new($script:widgetHandle,$script:ui.Girl)
 $reports=@();$driver=$null;$finish=$null;$script:frameProbe=$null
 try{
   foreach($phase in @('bounce','drag','menu','quota')){
@@ -154,7 +122,7 @@ try{
     $driver.Stop();$finish.Stop();$script:frameProbe.Dispose();$script:gravityTimer.Stop()
     $p=$script:frameProbe
     $smooth=$p.Delivery.Count-ge 100 -and $p.Delivery.MeanMs-le 17.5 -and $p.Delivery.P95Ms-le 20 -and $p.Delivery.Over50Ms-eq 0
-    $result=[pscustomobject]@{phase=$phase;seconds=$SecondsPerPhase;smooth60Candidate=$smooth;presentation=$p.Presentation;delivery=$p.Delivery;workMaxMs=$p.MaxWorkMs;stalls=$p.Stalls;work=$p.WorkEvents;renderFps=$script:gravityTimer.Fps;renderFrames=$script:gravityTimer.FrameCount;nativeMoves=$script:gravityTimer.PositionUpdates;legacyMessageHook=[bool]$LegacyMessageHook;nativeMessages=$script:inputFilter.Messages;scriptMessages=$script:inputFilter.Forwarded;hostMode=[bool]$HostMode;defaultProfile=[bool]$DefaultProfile;physicsMeanMs=$script:gravityTimer.MeanPhysicsMs;placementMeanMs=$script:gravityTimer.MeanPlacementMs}
+    $result=[pscustomobject]@{phase=$phase;seconds=$SecondsPerPhase;smooth60Candidate=$smooth;presentation=$p.Presentation;delivery=$p.Delivery;workMaxMs=$p.MaxWorkMs;stalls=$p.Stalls;work=$p.WorkEvents;renderFps=$script:gravityTimer.Fps;renderFrames=$script:gravityTimer.FrameCount;nativeMoves=$script:gravityTimer.PositionUpdates;hostMode=[bool]$HostMode;defaultProfile=[bool]$DefaultProfile;physicsMeanMs=$script:gravityTimer.MeanPhysicsMs;placementMeanMs=$script:gravityTimer.MeanPlacementMs}
     $reports+=,$result
     Write-Output ($phase+': intervals='+$p.Delivery.Count+' p95='+$p.Delivery.P95Ms+'ms p99='+$p.Delivery.P99Ms+'ms worst='+[Math]::Round($p.Delivery.MaxMs,2)+'ms renderHz='+[Math]::Round($script:gravityTimer.Fps,1)+' nativeMoves='+$script:gravityTimer.PositionUpdates+' over25='+$p.Delivery.Over25Ms+' over50='+$p.Delivery.Over50Ms+' workMax='+[Math]::Round($p.MaxWorkMs,2)+'ms')
     if($p.Delivery.Count-lt 10){throw 'Insufficient frame observations; cannot claim performance acceptance'}
@@ -163,8 +131,6 @@ try{
   if($RequireSmooth60 -and @($reports|Where-Object{!$_.smooth60Candidate}).Count){throw 'Smooth-60 stress acceptance failed; inspect every phase report instead of relying on average FPS'}
 }finally{
   if($driver){$driver.Stop()};if($finish){$finish.Stop()};if($script:frameProbe){$script:frameProbe.Dispose()}
-  $hover.Dispose()
-  if($script:inputFilter){$script:inputFilter.Dispose()}elseif(!$nativeSource.IsDisposed){$nativeSource.RemoveHook($script:messageHook)}
   $script:gravityTimer.Stop();$script:gravitySampler.Stop();$script:context.IsOpen=$false;$script:window.Close()
   if($HostMode){$script:hostFollower.Dispose();[FrameStressHost]::DestroyWindow($script:hostHandle)|Out-Null}
   $temporary=[IO.Path]::GetFullPath($script:dataDir)
