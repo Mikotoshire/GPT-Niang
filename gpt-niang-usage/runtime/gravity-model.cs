@@ -46,6 +46,23 @@ public sealed class GptGravityModel {
     }
     public int FloorImpacts { get; private set; }
     public double Height { get; private set; }
+    // AI-generated presentation interpolation; see AI-NOTICE.md. The fixed-step solver is unchanged.
+    double previousRenderHeight, previousRenderX;
+    bool renderHistory;
+    double RenderAlpha { get { return Math.Max(0, Math.Min(1, accumulator / FixedStep)); } }
+    public double RenderHeight { get {
+        if(!renderHistory || !flying || IsPressed || ReleasePending || Dragging || grounded || landing)return Height;
+        return Math.Max(0, Math.Min(ceilingLimit, previousRenderHeight + (Height-previousRenderHeight)*RenderAlpha));
+    } }
+    public double RenderHorizontalPosition { get {
+        if(!renderHistory || !flying || IsPressed || ReleasePending || Dragging)return HorizontalPosition;
+        return Math.Max(0, Math.Min(widthLimit, previousRenderX + (HorizontalPosition-previousRenderX)*RenderAlpha));
+    } }
+    void FreezeRenderPosition() {
+        Height=RenderHeight;HorizontalPosition=RenderHorizontalPosition;
+        body.Position=new Vector2((float)(HorizontalPosition/Units),(float)(Height/Units));
+        renderHistory=false;accumulator=0;
+    }
     public double Velocity { get; private set; }
     public double ScaleX { get; private set; }
     public double ScaleY { get; private set; }
@@ -102,6 +119,7 @@ public sealed class GptGravityModel {
     public double HorizontalVelocity { get { return body == null ? 0 : body.LinearVelocity.X * Units; } }
     public void SetHorizontalPosition(double x) {
         HorizontalPosition = Math.Max(0, x);
+        previousRenderX=HorizontalPosition;
         if(Math.Abs(body.Position.X * Units - HorizontalPosition) > 0.5)
             body.Position = new Vector2((float)(HorizontalPosition / Units), body.Position.Y);
     }
@@ -151,7 +169,7 @@ public sealed class GptGravityModel {
 
     public GptGravityModel() { GroundFrictionMultiplier=DefaultGroundFrictionMultiplier; GravityMultiplier=DefaultGravityMultiplier; Elasticity=DefaultElasticity; ImpactSquish=DefaultImpactSquish; AnimationSpeed=DefaultAnimationSpeed; TapCompression=DefaultTapCompression; EnergyConversion=DefaultEnergyConversion; CompressionCurve=DefaultCompressionCurve; Reset(); }
     public void Reset() {
-        CreateWorld(); accumulator = 0; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
+        CreateWorld(); accumulator = 0; renderHistory=false; FloorImpacts = 0; wasTouchingFloor = touchingFloor = false;
         Height = Velocity = PeakHeight = Charge = age = held = impact = relax = 0;
         impactSpeed = impactDuration = 0; ClearSpring(); landing = false;
         landingEntryX = landingEntryY = takeoffStretch = 0;
@@ -159,6 +177,7 @@ public sealed class GptGravityModel {
         IsPressed = ReleasePending = Dragging = flying = multiple = grounded = false;
     }
     public void BeginPress() {
+        FreezeRenderPosition();
         IsPressed = true; ReleasePending = Dragging = flying = multiple = false;
         body.LinearVelocity = Vector2.Zero;
         Velocity = age = held = Charge = impact = relax = 0; Rebounds = 0;
@@ -171,6 +190,7 @@ public sealed class GptGravityModel {
         if (age >= CompressionSeconds - 1e-9) Launch();
     }
     public void BeginDrag() {
+        FreezeRenderPosition();
         IsPressed = ReleasePending = flying = false; Dragging = true;
         body.LinearVelocity = Vector2.Zero;
         Velocity = Charge = held = age = impact = relax = 0; ScaleX = ScaleY = 1;
@@ -219,6 +239,7 @@ public sealed class GptGravityModel {
         accumulator += Math.Min(seconds, 0.1);
         double remaining = accumulator;
         while (remaining >= FixedStep - 1e-9) {
+            previousRenderHeight=Height;previousRenderX=HorizontalPosition;renderHistory=true;
             double dt = FixedStep;
             if (ReleasePending && age < CompressionSeconds)
                 dt = Math.Min(dt, CompressionSeconds - age);

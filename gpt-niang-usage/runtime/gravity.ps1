@@ -107,7 +107,7 @@ function Set-WidgetGravityScene {
 function Sync-WidgetGravityPosition {
   if(!$script:gravityTimer -or !$script:gravityTimer.Scene -or !$script:gravityTimer.Scene.HasPose){return}
   $scene=$script:gravityTimer.Scene
-  $script:offsetBottom=$script:gravity.Height*$script:displayScale
+  $script:offsetBottom=$script:gravity.RenderHeight*$script:displayScale
   if($scene.Free){$script:offsetLeft=$scene.PoseLeft;$script:offsetRight=$scene.PoseRight;$script:anchor='free'}
   if(!$script:followHost){$script:desktopLeft=$scene.X;$script:desktopTop=$scene.Y}
   if($scene.Drag){$script:side=if($scene.X+$scene.Width/2-lt ($scene.FrameLeft+$scene.FrameRight)/2){'left'}else{'right'}}
@@ -134,7 +134,7 @@ function Set-WidgetGravityMode([bool]$Enabled) {
     $geometry=Get-WidgetGravityGeometry
     $padding=$geometry.Padding/$dpi
     $height=($frame.Bottom-$rect.Bottom)/$dpi
-    if($Enabled){$script:gravity.DropFrom([Math]::Max(0,($height+$padding)*$dpi/$geometry.Unit));$script:offsetBottom=$script:gravity.Height*$script:displayScale}
+    if($Enabled){$script:gravity.DropFrom([Math]::Max(0,($height+$padding)*$dpi/$geometry.Unit));$script:offsetBottom=$script:gravity.RenderHeight*$script:displayScale}
     else{$script:offsetBottom=[Math]::Max(0,$height);$script:gravity.Reset()}
   }else{$script:gravity.Reset()}
   Set-WidgetGravityPose
@@ -186,7 +186,7 @@ function Release-WidgetGravityDrop([switch]$Cancel) {
   $script:gravity.SetHorizontalPosition([Math]::Max(0,($rect.Left-$frame.Left)/$geometry.Unit))
   $script:gravity.FlingFrom([Math]::Max(0,$height),$vx,$vy)
   $script:gravityInertia=$true;$script:anchor='free'
-  $script:offsetBottom=$script:gravity.Height*$script:displayScale
+  $script:offsetBottom=$script:gravity.RenderHeight*$script:displayScale
   Set-WidgetGravityPose;Start-WidgetGravityTimer
 }
 function Update-WidgetGravity {
@@ -204,17 +204,17 @@ function Update-WidgetGravity {
   if(!$script:gravityInertia){$script:gravity.SetHorizontalPosition([Math]::Max(0,($rect.Left-$frame.Left)/$unit))}
   $width=[Math]::Max(0,($frame.Right-$frame.Left-$w)/$unit)
   $script:gravity.Advance($elapsed,$ceiling,$width);Set-WidgetGravityPose
-  $x=[int][Math]::Round($frame.Left+$script:gravity.HorizontalPosition*$unit)
+  $x=[int][Math]::Round($frame.Left+$script:gravity.RenderHorizontalPosition*$unit)
   if($script:gravityInertia){
     $script:offsetLeft=($x-$frame.Left)/$dpi;$script:offsetRight=($frame.Right-$x-$w)/$dpi
     $script:anchor='free';$script:desktopLeft=$x
   }
-  $script:offsetBottom=$script:gravity.Height*$script:displayScale
+  $script:offsetBottom=$script:gravity.RenderHeight*$script:displayScale
   if($script:followHost){
-    $script:hostFollower.MovePose([int]($script:offsetLeft*$dpi),[int]($script:offsetRight*$dpi),[int]($script:gravity.Height*$unit-$padding),$script:anchor)
+    $script:hostFollower.MovePose([int]($script:offsetLeft*$dpi),[int]($script:offsetRight*$dpi),[int]($script:gravity.RenderHeight*$unit-$padding),$script:anchor)
   }else{
     $rect=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
-    $y=[int][Math]::Round($frame.Bottom-$h+$padding-$script:gravity.Height*$unit)
+    $y=[int][Math]::Round($frame.Bottom-$h+$padding-$script:gravity.RenderHeight*$unit)
     $script:desktopTop=$y
     [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,$x,$y,0,0,0x15)|Out-Null
   }

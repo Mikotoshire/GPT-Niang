@@ -864,7 +864,7 @@ function Tick-Widget {
       }else{$x=[int]($frame.Right-$w-$script:offsetRight*$dpi)}
       $x=[int][Math]::Max($frame.Left,[Math]::Min($frame.Right-$w,$x))
       $floorPadding=if($gravityGeometry){$gravityGeometry.Padding}else{0}
-      $desiredY=if($gravityGeometry){$frame.Bottom-$h+$floorPadding-$script:gravity.Height*$gravityGeometry.Unit}elseif($script:followHost){$frame.Bottom-$h-$script:offsetBottom*$dpi}else{$script:desktopTop}
+      $desiredY=if($gravityGeometry){$frame.Bottom-$h+$floorPadding-$script:gravity.RenderHeight*$gravityGeometry.Unit}elseif($script:followHost){$frame.Bottom-$h-$script:offsetBottom*$dpi}else{$script:desktopTop}
       $y=[int][Math]::Max($frame.Top,[Math]::Min($frame.Bottom-$h+$floorPadding,$desiredY))
       $position="$($script:hostHandle):$x,$y,$w,$h"
       if($position-ne $script:lastPosition){
@@ -872,7 +872,7 @@ function Tick-Widget {
         $script:lastPosition=$position
         if($script:context.IsOpen){Set-WidgetMenuBounds;Position-WidgetMenuToHost}
       }
-      $bottom=if($gravityGeometry){$script:gravity.Height*$gravityGeometry.Unit-$floorPadding}else{$script:offsetBottom*$dpi}
+      $bottom=if($gravityGeometry){$script:gravity.RenderHeight*$gravityGeometry.Unit-$floorPadding}else{$script:offsetBottom*$dpi}
       if($script:followHost){$nativeFrame=[GptWidgetNative]::Frame($script:hostHandle);$script:hostFollower.Configure($script:hostHandle,$nativeFrame.Left,$nativeFrame.Top,$nativeFrame.Right,$nativeFrame.Bottom,$w,$h,[int]($script:offsetLeft*$dpi),[int]($script:offsetRight*$dpi),[int]$bottom,$script:anchor,$true)}
     }
     if($script:followHost){$layer=Set-WidgetAboveHost $script:widgetHandle $script:hostHandle}
