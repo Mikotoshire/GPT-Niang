@@ -22,4 +22,18 @@ foreach($case in @(
     Assert ($m.Height-eq 0 -and $m.Velocity-eq 0) 'Stopped body rests exactly on the floor'
   }
 }
+# A zero slider intentionally allows sliding; real upward motion must still launch.
+$zero=[GptGravityModel]::new();$zero.SetTuning(1.4,1.64)
+$zero.SetGroundFriction(0);$zero.SetEnergyConversion(76.5)
+$zero.SetHorizontalPosition(10000);$zero.FlingFrom(571,600,-70)
+for($i=0;$i-lt 200;$i++){$zero.Advance(.1,1047,100000)}
+$before=$zero.HorizontalVelocity;$hits=$zero.FloorImpacts
+for($i=0;$i-lt 100;$i++){$zero.Advance(.1,1047,100000)}
+Assert ([Math]::Abs($zero.HorizontalVelocity-$before)-lt .01 -and $zero.FloorImpacts-eq $hits) 'Zero friction preserves sliding without inventing impacts'
+foreach($step in @((1.0/60),(1.0/120))){
+  $air=[GptGravityModel]::new();$air.SetGroundFriction(3)
+  $air.SetHorizontalPosition(10000);$air.FlingFrom(0,600,300)
+  for($i=0;$i-lt 6;$i++){$air.Advance($step,1047,30000)}
+  Assert ($air.Height-gt 0 -and $air.FloorImpacts-eq 0 -and [Math]::Abs($air.HorizontalVelocity-600)-lt .01) 'True upward launch is airborne and receives no ground drag'
+}
 'PASS: cached floor contact and solver velocity noise cannot bypass sliding friction'

@@ -93,6 +93,8 @@ public sealed class GptGravityModel {
         if(world != null) world.Gravity = new Vector2(0,(float)(-EffectiveGravity/Units));
     }
     const double Units = 100, FixedStep = 1.0 / 240;
+    // Solver roundoff at a real floor contact is not an upward launch.
+    const double FloorVelocityEpsilon = 0.001;
     World world;
     Body body, bounds;
     Fixture floor;
@@ -122,7 +124,7 @@ public sealed class GptGravityModel {
                 contact.Restitution = 0; contact.Friction = 0;
                 return;
             }
-            floorContact = body.LinearVelocity.Y <= 0;
+            floorContact = body.LinearVelocity.Y * Units <= FloorVelocityEpsilon;
             stopLanding = !multiple || PeakHeight <= TapApex + 0.5;
             // The spring reservoir releases the rebound after visual recovery.
             contact.Restitution = 0;
@@ -271,7 +273,7 @@ public sealed class GptGravityModel {
                 impactFrictionBoost = 0;
             }
         }
-        else if (floorContact && previousVelocity <= 0) {
+        else if (floorContact && previousVelocity <= FloorVelocityEpsilon) {
             if(!wasTouchingFloor && (previousHeight>0 || previousVelocity<0)){
                 body.LinearVelocity = new Vector2(body.LinearVelocity.X * (float)HorizontalRetention,body.LinearVelocity.Y);
                 FloorImpacts++;
@@ -298,7 +300,12 @@ public sealed class GptGravityModel {
                 grounded = true;
                 HoldOnFloor();
             }
-            else if (stopLanding) HoldOnFloor();
+            else if (stopLanding) {
+                // Cached contact can survive a final tiny rebound. Restore support
+                // even when it is not a new impact, so ground drag keeps running.
+                grounded = true;
+                HoldOnFloor();
+            }
         }
         wasTouchingFloor = touchingFloor;
         if (!landing && Height < 0.8 && Math.Abs(Velocity) < 2 && Math.Abs(HorizontalVelocity) < 2) {
