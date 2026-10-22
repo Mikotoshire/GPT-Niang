@@ -312,13 +312,13 @@ public sealed class GptGravityRenderLoop {
         if(s.Scale.ScaleX!=s.Model.ScaleX)s.Scale.ScaleX=s.Model.ScaleX;
         if(s.Scale.ScaleY!=s.Model.ScaleY)s.Scale.ScaleY=s.Model.ScaleY;
         poseTicks+=Stopwatch.GetTimestamp()-started;started=Stopwatch.GetTimestamp();
-        double exactX=s.Free?s.FrameLeft+s.Model.RenderHorizontalPosition*s.Unit:
+        double exactX=s.Free?s.FrameLeft+s.Model.HorizontalPosition*s.Unit:
             s.Anchor=="right"?s.FrameRight-s.Width-s.Right*s.Dpi:s.FrameLeft+s.Left*s.Dpi;
         exactX=Math.Max(s.FrameLeft,Math.Min(s.FrameRight-s.Width,exactX));
         int x=(int)Math.Round(exactX);
-        int bottom=(int)Math.Round(s.Model.RenderHeight*s.Unit-s.Padding);
+        int bottom=(int)Math.Round(s.Model.Height*s.Unit-s.Padding);
         int y=s.FrameBottom-s.Height-bottom;
-        double exactY=s.FrameBottom-s.Height+s.Padding-s.Model.RenderHeight*s.Unit;
+        double exactY=s.FrameBottom-s.Height+s.Padding-s.Model.Height*s.Unit;
         // Native HWND coordinates are integers. Preserve the genuine fractional
         // position in the visual tree instead of discarding subpixel motion.
         if(s.Offset!=null){

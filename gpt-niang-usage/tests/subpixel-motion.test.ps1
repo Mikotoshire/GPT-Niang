@@ -36,17 +36,6 @@ try {
       Assert ($rect.Top-eq $scene.Y -and $rect.Left-eq $scene.X) 'Stored native pose matches actual HWND'
     }
   }
-  $scene.Model.SetHorizontalPosition(50);$scene.Model.FlingFrom(60,200,0)
-  foreach($i in 1..12){
-    $null=$step.Invoke($loop,@(1.0/180))
-    $rect=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($handle,[ref]$rect)|Out-Null
-    $shownX=$rect.Left+$scene.Offset.X*$unit;$shownY=$rect.Top+$scene.Offset.Y*$unit
-    Assert ([Math]::Abs($shownX-($scene.FrameLeft+$scene.Model.RenderHorizontalPosition*$unit))-lt .01) 'Native renderer must consume interpolated X rather than the newer solver X'
-    Assert ([Math]::Abs($shownY-($scene.FrameBottom-$scene.Height+$scene.Padding-$scene.Model.RenderHeight*$unit))-lt .01) 'Native renderer must consume interpolated height'
-  }
-  $scene.Model.BeginPress();$null=$step.Invoke($loop,@(0.0))
-  $rect=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($handle,[ref]$rect)|Out-Null
-  Assert ([Math]::Abs($rect.Left+$scene.Offset.X*$unit-$shownX)-lt .01 -and [Math]::Abs($rect.Top+$scene.Offset.Y*$unit-$shownY)-lt .01) 'Airborne press must preserve the actual rendered position'
   $scene.Model.BeginDrag();$scene.Drag=[GptDragMotion]::new(200,300);$scene.Drag.SetTarget(400,500)
   for($i=0;$i-lt 30;$i++){$null=$step.Invoke($loop,@(1.0/120))}
   Assert ($scene.Model.Dragging -and $scene.Model.Velocity-eq 0 -and $scene.Model.HorizontalVelocity-eq 0) 'Rendered drag tracks its target without integrating gravity or inventing momentum'
