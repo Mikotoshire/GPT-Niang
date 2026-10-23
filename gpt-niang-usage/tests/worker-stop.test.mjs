@@ -206,7 +206,9 @@ test('Mac private handoff finishes its query and replacement serves queued reque
   });
   try {
     const resultFile = path.join(worker.dataDir, 'refresh-results', id + '.json'), resultDeadline = Date.now() + 6500;
-    while (Date.now() < resultDeadline && !read(resultFile) && !result) await pause(20);
+    // AI-generated test repair; insufficiently validated. Result publication
+    // precedes queue cleanup: wait for both bounded effects, not an atomic pair.
+    while (Date.now() < resultDeadline && (!read(resultFile) || fs.existsSync(queued)) && !result) await pause(20);
     assert.equal(read(resultFile)?.requestId, id);
     assert.equal(fs.existsSync(queued), false);
     const replacementOwner = read(worker.ownerFile);
