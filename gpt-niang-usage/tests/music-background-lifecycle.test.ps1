@@ -21,7 +21,9 @@ function Check([bool]$Value,[string]$Message){if(!$Value){$script:fail+=$Message
 try{
  $hostWindow=[Windows.Window]::new();$hostWindow.Width=1000;$hostWindow.Height=780;$hostWindow.Left=-5000;$hostWindow.Top=-5000;$hostWindow.ShowActivated=$false;$hostWindow.ShowInTaskbar=$false;$hostWindow.WindowStyle='None';$hostWindow.Show()
  $hh=[Windows.Interop.WindowInteropHelper]::new($hostWindow).Handle
- [BackgroundLifeProbe]::SetWindowPos($hh,[IntPtr](1),0,0,0,0,0x213)|Out-Null
+ # AI-generated fixture repair; insufficiently validated. The host is already
+ # off-screen: keep it above desktop shell HWNDs, without activation or topmost.
+ [BackgroundLifeProbe]::SetWindowPos($hh,[IntPtr]::Zero,0,0,0,0,0x213)|Out-Null
  $window=[Windows.Markup.XamlReader]::Parse([IO.File]::ReadAllText((Join-Path $AppDirectory 'widget.xaml')));$window.Left=-4900;$window.Top=-4900;$window.Width=$window.Height=378
  $girl=$window.FindName('Girl');$girl.Source=[Windows.Media.Imaging.BitmapImage]::new([Uri](Join-Path $AppDirectory 'assets/gpt-dragon-niang-bust.png'))
  foreach($part in @('Bubble','Tail','TailNear')){$window.FindName($part).Visibility='Collapsed'}
