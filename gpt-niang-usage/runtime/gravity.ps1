@@ -27,9 +27,53 @@ function Complete-WidgetFrameProbe([switch]$Force) {
     Write-WidgetJson (Join-Path $script:dataDir 'frame-diagnostics.json') @{schema=1;session=$probe.SessionId;state='complete';elapsedMs=$probe.ElapsedMs;presentation=$probe.Presentation;delivery=$probe.Delivery;workCount=$probe.WorkCount;maxWorkMs=$probe.MaxWorkMs;summary=$probe.WorkSummary;work=$probe.WorkEvents;stalls=$probe.Stalls}
   }finally{$script:frameProbe=$null}
 }
+function Test-WidgetGravityMotionSuspended {
+  return [bool]($script:gravityMotionOwners -and $script:gravityMotionOwners.Count-gt 0)
+}
+# AI-generated compatibility adaptation; insufficiently validated. See AI-NOTICE.md.
+# Music and temporary notifications may nest. Only the final owner resumes physics.
+function Suspend-WidgetGravityForTransientMotion([string]$Owner) {
+  if(!$script:gravity){return}
+  if(!$script:gravityMotionOwners){$script:gravityMotionOwners=[Collections.Generic.HashSet[string]]::new()}
+  if(!$script:gravityMotionOwners.Add($Owner)){return}
+  $script:gravityResumePending=$false
+  $script:gravityTimer.Stop();$script:gravitySampler.Stop()
+  $script:gravityInertia=$false;$script:gravity.Reset()
+  if($script:ui.MotionOffset){$script:ui.MotionOffset.X=0;$script:ui.MotionOffset.Y=0}
+  Set-AnimatedValue $script:ui.PressScale ([Windows.Media.ScaleTransform]::ScaleXProperty) 1
+  Set-AnimatedValue $script:ui.PressScale ([Windows.Media.ScaleTransform]::ScaleYProperty) 1
+  Set-WidgetGravityPose
+}
+function Resume-WidgetGravityFromNativePosition([string]$Owner) {
+  if(!$script:gravityMotionOwners){return}
+  $removed=$script:gravityMotionOwners.Remove($Owner)
+  if(!$removed -and !$script:gravityResumePending){return}
+  if(Test-WidgetGravityMotionSuspended){return}
+  if(!$script:gravityEnabled -or $script:runtimeClosed){$script:gravityResumePending=$false;return}
+  $script:gravityResumePending=$true
+  $frame=Get-WidgetPlacementFrame;$dpi=Get-WidgetPlacementDpi
+  if(!(Test-WidgetPlacementFrame $frame $dpi)){return}
+  $geometry=Get-WidgetGravityGeometry;$rect=[GptWidgetNative+Rect]::new()
+  if(![GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)){return}
+  $height=[Math]::Max(0.0,($frame.Bottom-$geometry.Height+$geometry.Padding-$rect.Top)/$geometry.Unit)
+  $script:gravity.DropFrom($height)
+  $script:gravity.SetHorizontalPosition([Math]::Max(0.0,($rect.Left-$frame.Left)/$geometry.Unit))
+  $script:gravityInertia=$true;$script:anchor='free'
+  $script:offsetLeft=($rect.Left-$frame.Left)/$dpi
+  $script:offsetRight=($frame.Right-$rect.Right)/$dpi
+  $script:offsetBottom=$height*$script:displayScale
+  $script:lastPosition=$null
+  $script:gravityResumePending=$false
+  Start-WidgetGravityTimer
+}
 function Get-WidgetGravityPadding {
   # Ground is the visible character's feet, excluding the transparent canvas margin.
-  return [Math]::Max(0,$script:designHeight-([Windows.Controls.Canvas]::GetTop($script:ui.Root)+[Windows.Controls.Canvas]::GetTop($script:ui.Girl)+$script:ui.Girl.Height))
+  $image=$script:ui.Girl;$height=$image.Height
+  if($image.Source -and $image.Stretch-eq [Windows.Media.Stretch]::Uniform){
+    $drawHeight=[Math]::Min($image.Width/$image.Source.Width,$image.Height/$image.Source.Height)*$image.Source.Height
+    $height=($image.Height+$drawHeight)/2
+  }
+  return [Math]::Max(0.0,$script:designHeight-([Windows.Controls.Canvas]::GetTop($script:ui.Root)+[Windows.Controls.Canvas]::GetTop($image)+$height))
 }
 function Get-WidgetGravityGeometry {
   $rect=[GptWidgetNative+Rect]::new()
@@ -75,12 +119,14 @@ function Initialize-WidgetGravity {
   })
 }
 function Start-WidgetGravityTimer {
+  if(Test-WidgetGravityMotionSuspended){return}
   if($script:gravityEnabled -and $script:gravity.Active -and !$script:gravityTimer.IsEnabled){
     if(!(Set-WidgetGravityScene)){return}
     $script:gravityClock.Restart();$script:gravityTimer.Start()
   }
 }
 function Set-WidgetGravityScene {
+  if(Test-WidgetGravityMotionSuspended){return $false}
   $frame=Get-WidgetPlacementFrame;$dpi=Get-WidgetPlacementDpi
   if(!(Test-WidgetPlacementFrame $frame $dpi)){return $false}
   $geometry=Get-WidgetGravityGeometry
@@ -96,7 +142,7 @@ function Set-WidgetGravityScene {
   }
   if(!$script:gravityInertia){
     $rect=[GptWidgetNative+Rect]::new();[GptWidgetNative]::GetWindowRect($script:widgetHandle,[ref]$rect)|Out-Null
-    $script:gravity.SetHorizontalPosition([Math]::Max(0,($rect.Left-$frame.Left)/$geometry.Unit))
+    $script:gravity.SetHorizontalPosition([Math]::Max(0.0,($rect.Left-$frame.Left)/$geometry.Unit))
   }
   if($script:drag -and $script:gravity.Dragging -and $script:gravityTimer.Scene -and $script:gravityTimer.Scene.Drag){
     $scene.Drag=$script:gravityTimer.Scene.Drag;$scene.Free=$true;$scene.Move=$null
@@ -118,6 +164,7 @@ function Set-WidgetGravityPose {
   $script:ui.GravityScale.ScaleY=$script:gravity.ScaleY
 }
 function Set-WidgetGravityMode([bool]$Enabled) {
+  if((Get-Command Test-WidgetMusicActive -ErrorAction SilentlyContinue) -and (Test-WidgetMusicActive)){Stop-WidgetMusic}
   if($script:ui.MotionOffset){$script:ui.MotionOffset.X=0;$script:ui.MotionOffset.Y=0}
   $script:gravitySampler.Stop()
   $script:gravityEnabled=$Enabled
@@ -183,7 +230,7 @@ function Release-WidgetGravityDrop([switch]$Cancel) {
   $velocity=$script:gravitySampler.Finish($geometry.Unit)
   if($Cancel){$velocity=@(0.0,0.0)}
   $vx=$velocity[0];$vy=$velocity[1]
-  $script:gravity.SetHorizontalPosition([Math]::Max(0,($rect.Left-$frame.Left)/$geometry.Unit))
+  $script:gravity.SetHorizontalPosition([Math]::Max(0.0,($rect.Left-$frame.Left)/$geometry.Unit))
   $script:gravity.FlingFrom([Math]::Max(0,$height),$vx,$vy)
   $script:gravityInertia=$true;$script:anchor='free'
   $script:offsetBottom=$script:gravity.Height*$script:displayScale

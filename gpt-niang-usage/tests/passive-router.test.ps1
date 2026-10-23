@@ -5,6 +5,7 @@ $ErrorActionPreference='Stop'
 Add-Type -ReferencedAssemblies @([Windows.Interop.HwndSource].Assembly.Location) -TypeDefinition @"
 using System;using System.Windows.Interop;
 public static class RouterInvokeFixture {
+ public static IntPtr LastPosition;public static void Position(IntPtr data){LastPosition=data;}
  public static HwndSourceHook Echo {get{return delegate(IntPtr h,int m,IntPtr w,IntPtr l,ref bool handled){handled=true;return new IntPtr(12345);};}}
  public static object[] Call(HwndSourceHook hook,int message,bool handled){
   IntPtr result=hook(new IntPtr(17),message,new IntPtr(23),new IntPtr(29),ref handled);
@@ -43,3 +44,10 @@ $nativeRouter=[GptWidgetMessageRouter]::new([RouterInvokeFixture]::Echo)
 $nativeResult=[RouterInvokeFixture]::Call($nativeRouter.Hook,0x21,$false)
 if(!$nativeResult[1] -or $nativeResult[0].ToInt64()-ne 12345){throw "Native ref/result propagation failed"}
 'PASS: 4096 messages checked against production hook requirements; arguments/results/handled preserved, unrelated mouse messages stay with WPF'
+
+# Native position completion reaches recovery without entering the script callback.
+$nativeRouter.PositionChanged=[Delegate]::CreateDelegate([Action[IntPtr]],[RouterInvokeFixture].GetMethod('Position'))
+$before=$nativeRouter.ScriptMessages
+$null=[RouterInvokeFixture]::Call($nativeRouter.Hook,0x47,$false)
+if([RouterInvokeFixture]::LastPosition.ToInt64()-ne 29 -or $nativeRouter.ScriptMessages-ne $before){throw 'Native recovery routing entered script or lost its payload'}
+'PASS: native position recovery receives completion without PowerShell entry'

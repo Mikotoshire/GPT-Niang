@@ -206,6 +206,9 @@ public sealed class GptDragMotion {
 // AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
 // Preserve the script's existing hit tests. Unrelated messages need no runspace entry.
 public sealed class GptWidgetMessageRouter {
+    // AI-generated compatibility adaptation: notify native recovery without
+    // re-entering PowerShell for every animation position completion.
+    public Action<IntPtr> PositionChanged { get; set; }
     readonly System.Windows.Interop.HwndSourceHook next;
     readonly System.Windows.Interop.HwndSourceHook hook;
     public long Messages { get; private set; }
@@ -218,6 +221,9 @@ public sealed class GptWidgetMessageRouter {
     IntPtr Route(IntPtr hwnd,int message,IntPtr w,IntPtr l,ref bool handled) {
         Messages++;
         switch(message) {
+            case 0x47:
+                var observer=PositionChanged;if(observer!=null)observer(l);
+                return IntPtr.Zero;
             case 0x84: case 0x21: case 0x2E0: case 0x7E: case 0x1A:
                 ScriptMessages++;
                 return next(hwnd,message,w,l,ref handled);

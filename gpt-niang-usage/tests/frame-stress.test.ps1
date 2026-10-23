@@ -13,7 +13,7 @@ $null=[GptWidgetNative]::SetThreadDpiAwarenessContext([IntPtr](-4))
 $tokens=$null;$errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
 if($errors.Count){throw ($errors|Out-String)}
-foreach($name in @('Set-WidgetPixelSize','Set-AnimatedValue','Save-Settings')){
+foreach($name in @('Set-WidgetPixelSize','Set-AnimatedValue','Save-Settings','Get-WidgetVisibleFrame')){
   $node=$ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq $name},$true)
   . ([scriptblock]::Create($node.Extent.Text))
 }
@@ -49,6 +49,13 @@ foreach($name in @('Get-WidgetStaticBrush','Reset-Label','Format-ResetTime','For
   $node=$ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq $name},$true)
   if($node){. ([scriptblock]::Create($node.Extent.Text))}
 }
+# Load the production optional-feature interfaces used by the expanded menu.
+# They remain disabled: this fixture must not capture audio or start a monitor.
+foreach($module in @('music.ps1','audio.ps1','quotes.ps1','completion-notifications.ps1')){
+  $moduleSource=[IO.File]::ReadAllText((Join-Path $AppDir ('runtime/'+$module)),[Text.Encoding]::UTF8)
+  $runtimeLiteral="'"+(Join-Path $AppDir 'runtime').Replace("'","''")+"'"
+  . ([scriptblock]::Create($moduleSource.Replace('$PSScriptRoot',$runtimeLiteral)))
+}
 . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $AppDir 'runtime/ui-settings.ps1'))))
 . ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $AppDir 'runtime/color-theme.ps1'))))
 function Update-WidgetUpdateMenu {}
@@ -82,6 +89,17 @@ $now=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
 $fake=@{ok=$true;queryOk=$true;observedAt=$now;windows=@(@{minutes=300;used=25;remaining=75;resetsAt=[Math]::Floor($now/1000)+3600},@{minutes=10080;used=10;remaining=90;resetsAt=[Math]::Floor($now/1000)+7200})}
 [IO.File]::WriteAllText((Join-Path $script:dataDir 'status.json'),($fake|ConvertTo-Json -Depth 6))
 Initialize-WidgetSettingsMenu
+# Match the original stress fixture's persistent menu. Native capture/focus
+# dismissal is covered separately; this phase measures a continuously drawn menu.
+$script:context.StaysOpen=$true
+# Keep native pointer-read cost, but do not let unrelated physical clicks end
+# this synthetic rendering phase. Actual dismissal is tested by menu-dismiss.
+$script:stressPointerRead=(Get-Command Get-SettingsMenuPointer).ScriptBlock
+function Get-SettingsMenuPointer {
+  $pointer=& $script:stressPointerRead
+  $pointer.Mask=0
+  return $pointer
+}
 Initialize-WidgetColors
 Update-Quota
 $move=$ast.Find({param($n)$n-is [Management.Automation.Language.AssignmentStatementAst] -and $n.Left.Extent.Text-eq '$pressMove'},$true)
@@ -101,6 +119,10 @@ $hookNode=$ast.Find({param($n)$n-is [Management.Automation.Language.AssignmentSt
 . ([scriptblock]::Create($hookNode.Extent.Text))
 $fixtureHookSource=[Windows.Interop.HwndSource]::FromHwnd($script:widgetHandle)
 $fixtureRouter=[GptWidgetMessageRouter]::new($script:messageHook)
+. ([scriptblock]::Create([IO.File]::ReadAllText((Join-Path $AppDir 'runtime/host-occlusion.ps1'),[Text.Encoding]::UTF8)))
+$fixtureRecovery=[GptWidgetOcclusionRecovery]::new($script:widgetHandle)
+$fixtureRecovery.Configure($script:hostHandle,[bool]$HostMode)
+$fixtureRouter.PositionChanged=[Delegate]::CreateDelegate([Action[IntPtr]],$fixtureRecovery,'OnPositionChanged')
 $fixtureHookSource.AddHook($fixtureRouter.Hook)
 $reports=@();$driver=$null;$finish=$null;$script:frameProbe=$null
 try{
@@ -108,6 +130,8 @@ try{
     $script:stressPhase=$phase;$script:stressStep=0;$script:context.IsOpen=$false
     $script:gravityTimer.Stop();$script:gravitySampler.Stop();$script:gravity.Reset();$script:drag=$null
     $script:gravityEnabled=$true;$script:gravityInertia=$true
+    # Match Tick-Widget: occlusion recovery is suspended during menus or grabs.
+    $fixtureRecovery.Configure($script:hostHandle,([bool]$HostMode -and $phase-notin @('menu','drag')))
     if($DefaultProfile){$script:gravity.SetTuning([GptGravityModel]::DefaultGravityMultiplier,[GptGravityModel]::DefaultElasticity);$script:gravity.SetGroundFriction([GptGravityModel]::DefaultGroundFrictionMultiplier)}else{$script:gravity.SetTuning(.5,1);$script:gravity.SetGroundFriction(1)}
     $script:gravity.SetHorizontalPosition(100);$script:gravity.FlingFrom(300,180,0)
     if($phase-eq 'drag'){$script:drag=@{x=0;y=0;left=$area.Left+50;top=$area.Top+50;moved=$true};$script:gravity.BeginDrag();Begin-WidgetGravityDrag}
@@ -134,6 +158,7 @@ try{
     })
     $finish.Start();$driver.Start();[Windows.Threading.Dispatcher]::PushFrame($pump)
     $driver.Stop();$finish.Stop();$script:frameProbe.Dispose();$script:gravityTimer.Stop()
+    if($phase-eq 'menu' -and !$script:context.IsOpen){throw 'Menu closed during stress; this is not a valid menu performance sample'}
     $p=$script:frameProbe
     $smooth=$p.Delivery.Count-ge 100 -and $p.Delivery.MeanMs-le 17.5 -and $p.Delivery.P95Ms-le 20 -and $p.Delivery.Over50Ms-eq 0
     $result=[pscustomobject]@{phase=$phase;seconds=$SecondsPerPhase;smooth60Candidate=$smooth;presentation=$p.Presentation;delivery=$p.Delivery;workMaxMs=$p.MaxWorkMs;stalls=$p.Stalls;work=$p.WorkEvents;renderFps=$script:gravityTimer.Fps;renderFrames=$script:gravityTimer.FrameCount;nativeMoves=$script:gravityTimer.PositionUpdates;hostMode=[bool]$HostMode;defaultProfile=[bool]$DefaultProfile;physicsMeanMs=$script:gravityTimer.MeanPhysicsMs;placementMeanMs=$script:gravityTimer.MeanPlacementMs}
@@ -146,6 +171,7 @@ try{
 }finally{
   if($driver){$driver.Stop()};if($finish){$finish.Stop()};if($script:frameProbe){$script:frameProbe.Dispose()}
   $fixtureHookSource.RemoveHook($fixtureRouter.Hook)
+  $fixtureRecovery.Dispose()
   $script:gravityTimer.Stop();$script:gravitySampler.Stop();$script:context.IsOpen=$false;$script:window.Close()
   if($HostMode){$script:hostFollower.Dispose();[FrameStressHost]::DestroyWindow($script:hostHandle)|Out-Null}
   $temporary=[IO.Path]::GetFullPath($script:dataDir)

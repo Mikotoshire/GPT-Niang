@@ -6,7 +6,7 @@ function Initialize-WidgetUpdater {
   $script:autoUpdate=!$script:releaseUpdatesDisabled -and !($preferences -and $preferences.automatic-eq $false)
 }
 function Test-WidgetUpdateEditor {
-  return [bool](($script:quoteEditor -and $script:quoteEditor.IsVisible) -or ($script:colorTriggerEditor -and $script:colorTriggerEditor.IsVisible))
+  return [bool]($script:audioDialogOpen -or ($script:quoteEditor -and $script:quoteEditor.IsVisible) -or ($script:colorTriggerEditor -and $script:colorTriggerEditor.IsVisible) -or ($script:characterGallery -and $script:characterGallery.IsVisible))
 }
 function Start-WidgetUpdate([string]$Mode='manual') {
   if($script:releaseUpdatesDisabled -and $Mode-ne 'cleanup'){

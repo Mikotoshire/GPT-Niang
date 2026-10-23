@@ -44,7 +44,7 @@ public static class NativeMovementFixture {
 $flags=@()
 foreach($name in @('runtime/gravity-render.cs','runtime/host-follow.ps1','widget.ps1')){
  $source=[IO.File]::ReadAllText((Join-Path $AppDir $name))
- foreach($match in [regex]::Matches($source,',0,0,(0x[0-9a-fA-F]+)\)')){
+ foreach($match in [regex]::Matches($source,'SetWindowPos\((?:s\.Widget|widget|\$script:widgetHandle),[^\r\n]*,0,0,(0x[0-9a-fA-F]+)\)')){
   $value=[Convert]::ToUInt32($match.Groups[1].Value.Substring(2),16)
   if(($value-band 2)-eq 0){$flags+=,$value}
  }
