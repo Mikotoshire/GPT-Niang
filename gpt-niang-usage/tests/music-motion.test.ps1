@@ -25,6 +25,22 @@ foreach($dpi in @(1.0,1.5,2.0)){
 if([Math]::Abs([GptMusicMotion]::BeatPose(0)-.40)-gt 1e-9 -or [Math]::Abs([GptMusicMotion]::BeatPose(.32)+.16)-gt 1e-9){throw 'Exact beat compression or rebound pose changed'}
 if($max-lt .32 -or $min-gt -.159){throw ('Requested stronger press/rebound missing in discrete frame samples: '+$max+'/'+$min)}
 $motion=[GptMusicMotion]::new(350,188,800,650,132,1)
+# AI-generated maintenance regression; insufficiently validated. Observe motion,
+# not the implementation constant, in a wide area without edge deceleration.
+foreach($dpi in @(1.0,1.5,2.0)){
+ foreach($hz in @(30,60,120,144)){
+  foreach($direction in @(-1,1)){
+  $travel=[GptMusicMotion]::new(2500*$dpi,650*$dpi,5000*$dpi,650*$dpi,132*$dpi,$dpi)
+  $travel.Phase=2;$travel.Props=1;$travel.Direction=$direction
+  for($i=0;$i-lt 3*$hz;$i++){$travel.Step((1.0/$hz),$false,$true,($i/$hz/.5),.5,1)}
+  $start=$travel.X
+  for($i=0;$i-lt 2*$hz;$i++){$travel.Step((1.0/$hz),$false,$true,(6+$i/$hz/.5),.5,1)}
+  $speed=[Math]::Abs($travel.X-$start)/$dpi/2
+  if(($travel.X-$start)*$direction-le 0){throw 'Beat travel reversed the requested direction'}
+  if($speed-lt 34 -or $speed-gt 36){throw ('Expected moderately faster beat travel near 35 DIP/s, got '+$speed)}
+  }
+ }
+}
 $motion.Phase=2;$motion.Y=650;$motion.Props=1;$motion.Step(.025,$false,$true,0,.5,1)
 $x=$motion.X;$time=$motion.Time
 for($i=0;$i-lt 120;$i++){$motion.Step(.025,$true,$true,0,.5,1)}
