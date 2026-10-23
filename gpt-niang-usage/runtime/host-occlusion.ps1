@@ -90,7 +90,10 @@ public sealed class GptWidgetOcclusionRecovery:IDisposable {
   Begin();
  }
  public void OnPositionChanged(IntPtr data){
-  if(data==IntPtr.Zero)return;
+  // AI-generated fast path; insufficiently validated. SWP_NOZORDER geometry
+  // updates keep the existing no-scan policy; avoid boxing the struct per move.
+  if(data==IntPtr.Zero||disposed||!enabled)return;
+  if((Marshal.ReadInt32(data,2*IntPtr.Size+16)&4)!=0)return;
   var position=(WindowPosition)Marshal.PtrToStructure(data,typeof(WindowPosition));
   // Windows also reorders owned windows during host promotion. Observe that
   // completion through our own HWND; geometry-only updates need no new burst.
