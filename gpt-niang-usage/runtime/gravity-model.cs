@@ -238,6 +238,8 @@ public sealed class GptGravityModel {
     }
     void AdvanceFlight(double seconds, double ceiling) {
         double previousVelocity = Velocity, previousHeight = Height;
+        // Repair exact resting support only; never snap a falling body near the floor.
+        if (!grounded && !landing && previousHeight == 0 && previousVelocity == 0) grounded = true;
         floorContact = touchingFloor = false; stopLanding = false;
         world.Step((float)seconds);
         Height = Math.Max(0, Math.Min(ceiling, body.Position.Y * Units));
@@ -307,6 +309,9 @@ public sealed class GptGravityModel {
         }
     }
     void HoldOnFloor() {
+        // AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
+        // Confirmed floor support also restores drag after a lost support latch.
+        grounded = true;
         Height = Velocity = 0;
         body.Position = new Vector2(body.Position.X, 0);
         body.LinearVelocity = new Vector2(body.LinearVelocity.X, 0);
