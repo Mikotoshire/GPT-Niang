@@ -1,5 +1,23 @@
 # Codex 维护笔记
 
+## 音乐横移提速与轻微卡顿排查（2026-10-24，未发布）
+
+AI 生成维护修改与本节文档，未经充分验证。用户反馈合并后音乐可用、但普通模式也略增卡顿；这条反馈优先于此前合成压力测试的接受结论。本轮从 d0975fb 单独建分支，保留 backup/2026-10-23-before-music-motion-tuning 及仓库外 bundle，不改既有 Release。
+
+音乐锁拍后的主动横移目标由 25 提至 35 DIP/秒。只改这个目标常量；甩出时的鼠标速度采样、惯性、碰边、落地衰减、竖直弹性及节奏相位保持。新增行为回归在左右方向、3 个 DPI、4 个步频共 24 种组合中检查约 35 DIP/秒的稳定速度，旧版约 25 的结果先失败。
+
+新增遮挡恢复的 OnPositionChanged 原本对每次普通移动先 PtrToStructure，再按 SWP_NOZORDER 跳过。将既有无扫描判断前移：disabled/disposed 直接返回；按两个指针加四个 int 的偏移读 flags，普通移动直接返回，真实层级变化仍走原逻辑。偏移为 x86=24、x64=32；保留实际覆盖/解除覆盖回归，未更改原生窗口移动标志、鼠标捕获、重力或渲染调度。100 万次独立回调的线程分配由 56 MB 降为 0，耗时约 107→6 ms；这是一项很小的每次移动开销，不能据此称整体卡顿已解决。
+
+新回归通过反射探测 GC.GetAllocatedBytesForCurrentThread，预热后测回调循环的当前线程分配，允许少量固定测量准备成本；进程级 GC 次数仅辅助诊断，不作为跨线程断言。旧 Framework 若缺少线程分配 API，明确提示该测量缺失，仍检查普通移动不会启动遮挡扫描，不声称已证明零分配。测试接入 Windows runner。
+
+一次真实 20 秒帧记录 p95=30 ms、最大约 46.4 ms，记录内没有拖动或菜单工作；最高维护耗时约 8.8 ms。另一次只读事件统计为 17 次名称变更、2 次相关根窗口名称事件，未据此认定事件风暴或改写全局路由。均为有限本机样本，报告只留本机，不存窗口名称、内容、账号或额度。真实卡顿根因仍未确定，后续按实际反馈及有证据的瓶颈继续排查，不贸然恢复已失败的逐帧同步/插值试验。
+
+Node 首轮遇到既有测试的跨进程时序竞争：refresh-client 先发布结果，再删除请求文件，父测试可能恰在两步之间读取。仅将测试的原 6.5 秒等待条件改为两项均完成，保留全部 requestId、删除、owner/token 和交接断言，不改运行时或延长期限；完整复测通过。首轮与 Node 测试重叠的性能基准作废，使用串行样本比较。C# 与 JS 测试修改均经 AI 审查，不能替代独立人工验证。计划见 docs/superpowers/plans/2026-10-24-music-motion-tuning.md。
+
+音乐背景恢复夹具另复现了旧版同样存在的原生错误 5：夹具将离屏宿主强制置于 HWND_BOTTOM，背景再按底层窗口插入位置显示时被拒绝；同一窗口恢复普通 HWND_TOP、仍不激活且不置顶后，原有 PositionLamp 立即成功。最终只修正夹具宿主层级，保留原 100 ms 与所有覆盖、非置顶、同一 HWND 恢复及前台保护断言。延长等待的试验无效，已撤销；未改生产音乐生命周期来迎合这个人工场景。
+
+有效串行 8 秒/场景压力对比：基线弹跳/拖动/持续菜单/额度 p95=14/10/12/17 ms，候选=17/10/11/11 ms，两者均无 >=50 ms 间隔。弹跳略差、其他接近或较好，不作为全面提帧证据。真实运行记录和用户后续体验仍优先；原有稳定 60 FPS 限制不作解决声明。
+
 ## 合并上游 v1.3.5（2026-10-23，未发布）
 
 AI 生成兼容性修改与本节文档，未经充分验证；上游原作及第三方代码保留其原始归属。以两父提交合并上游 b6f5eb8，基线为个人版 51e7f55，合并前保存 backup/2026-10-23-before-upstream-135 及仓库外 bundle。版本号保留 1.5.0，不修改既有 Release、标签或附件；本轮只同步源码。Windows 为验证目标，macOS 源码保留上游历史，未在本机验证。
@@ -454,3 +472,9 @@ managed-frames.test.ps1 通过反射停止到达时钟，注入六个间隔 1/60
 ## Windows-only maintenance CI
 
 AI-generated maintenance change; insufficiently validated. At the user's request, test.yml now runs only the Windows job. The reusable release gate still requires the complete Windows runtime, installer, WPF, Node and packaging checks. Upstream macOS sources and historical results remain for provenance; this fork publishes and maintains Windows only. Existing release tags and assets are unchanged.
+
+## 音乐横移速度滑条（2026-10-27，未发布）
+
+AI 生成修改与文档，未经充分验证。用户已反馈上一轮“横移合适，卡顿减轻”。新菜单为“音乐设置 → 横移速度”：0–200%，每档 10%，默认 100% 保持 35 DIP/秒的基准；0% 平滑停止节拍主动横移，跟拍形变和用户甩出惯性独立。偏好 musicTravelSpeedPercent 本机保存；关闭音乐时可调整，不启动录音；重新创建 Motion 后恢复倍率。C# TravelSpeedMultiplier 默认 1，有限值夹至 0–2，非有限值回退 1；PS 非法、布尔、空白、越界值回退 100，合法数值就近取 10% 档。
+
+每步只多一次数值乘法，不新增定时器、分配或脚本回调。菜单同步不保存，用户改变档位保存一次；初始化、真实 Save-Settings JSON 往返与完整隔离 CheckOnly 启动已覆盖 0/100/200/非法值，不写真实配置。新增模型测试覆盖 96 速度组合、实时调整、节拍姿态独立、27 组惯性/碰撞及非法输入。新模型、helper、菜单、启动及 7 项现有音乐检查通过，专项 AI 审查通过，不能保证所有设备行为或真实帧率。上一轮前后真实帧样本的音乐开启状态不同，不能用于证明性能改善；用户实际反馈优先。源码同步，不打包发布。

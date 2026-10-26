@@ -12,9 +12,11 @@ $script:gravity=[GptGravityModel]::new()
 Initialize-WidgetAutoQuoteSettings $null
 . (Join-Path $appDir 'runtime\completion-notifications.ps1')
 . ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path $appDir 'runtime/music.ps1'),[Text.Encoding]::UTF8)))
+Initialize-WidgetMusicSettings $null
 Initialize-CompletionNotificationState $null
 function Assert-Equal($actual,$expected,[string]$message){if($actual-ne $expected){throw "$message : expected '$expected', got '$actual'"}}
-function Save-Settings {}
+$script:settingsSaveCount=0
+function Save-Settings {$script:settingsSaveCount++}
 function Set-WidgetFollowHost([bool]$Follow){$script:followHost=$Follow}
 $productionMenuBounds=${function:Set-WidgetMenuBounds}
 function Set-WidgetMenuBounds {}
@@ -52,6 +54,40 @@ try{
   $script:galleryOpenCount=0
   function Open-WidgetCharacterGallery {$script:galleryOpenCount++}
   Initialize-WidgetSettingsMenu
+  # AI-generated UI regression coverage; insufficiently validated.
+  Assert-Equal ($script:context.Items.Contains($script:settingsMenuUi.MusicEnabled)) $true 'Music toggle stays top level'
+  Assert-Equal ($script:context.Items.Contains($script:settingsMenuUi.MusicSettings)) $true 'Music settings are adjacent to the direct toggle'
+  Assert-Equal $script:settingsMenuUi.MusicTravelSpeed.Minimum 0 'Music travel can be stopped'
+  Assert-Equal $script:settingsMenuUi.MusicTravelSpeed.Maximum 200 'Music travel reaches double speed'
+  Assert-Equal $script:settingsMenuUi.MusicTravelSpeed.TickFrequency 10 'Music travel has ten-percent steps'
+  Assert-Equal $script:settingsMenuUi.MusicTravelSpeed.SmallChange 10 'Keyboard uses ten-percent steps'
+  Assert-Equal $script:settingsMenuUi.MusicTravelSpeed.LargeChange 10 'Page keys use ten-percent steps'
+  Assert-Equal $script:settingsMenuUi.MusicTravelSpeed.IsSnapToTickEnabled $true 'Music slider snaps to steps'
+  Assert-Equal $script:settingsMenuUi.MusicTravelSpeed.IsEnabled $true 'Music travel can be configured while disabled'
+  Assert-Equal $script:settingsMenuUi.MusicTravelSpeed.Value 100 'Music travel starts at accepted default'
+  $beforeMusicSave=$script:settingsSaveCount
+  $script:settingsMenuUi.MusicTravelSpeed.Value=154
+  Assert-Equal $script:musicTravelSpeedPercent 150 'Intermediate music value normalizes to nearest step'
+  Assert-Equal $script:settingsMenuUi.MusicTravelSpeed.Value 150 'Music slider reflects normalized value'
+  Assert-Equal $script:settingsMenuUi.MusicTravelSpeedText.Text '150%' 'Music travel displays an integer percentage'
+  Assert-Equal $script:settingsSaveCount ($beforeMusicSave+1) 'One slider change saves exactly once'
+  for($musicLevel=0;$musicLevel-le 200;$musicLevel+=10){
+    $beforeMusicSave=$script:settingsSaveCount
+    $script:settingsMenuUi.MusicTravelSpeed.Value=$musicLevel
+    Assert-Equal $script:musicTravelSpeedPercent $musicLevel 'All twenty-one music levels are reachable'
+    Assert-Equal $script:settingsMenuUi.MusicTravelSpeedText.Text ($musicLevel.ToString()+'%') 'Each music level displays an integer'
+    Assert-Equal $script:settingsSaveCount ($beforeMusicSave+1) 'Each music level change saves once'
+  }
+  Assert-Equal ($null-eq $script:widgetMusic) $true 'Music slider does not implicitly enable capture'
+  $beforeMusicSave=$script:settingsSaveCount
+  Set-WidgetMusicTravelSpeedPercent 0
+  Update-WidgetSettingsMenu
+  Update-WidgetSettingsMenu
+  Assert-Equal $script:settingsMenuUi.MusicTravelSpeed.Value 0 'Menu sync preserves zero'
+  Assert-Equal $script:settingsSaveCount $beforeMusicSave 'Menu sync never saves music slider changes'
+  $script:settingsMenuUi.MusicEnabled.IsChecked=$false
+  $script:settingsMenuUi.MusicEnabled.RaiseEvent([Windows.RoutedEventArgs]::new([Windows.Controls.MenuItem]::ClickEvent))
+  Assert-Equal $script:musicTravelSpeedPercent 0 'Disabling music retains speed preference'
   Assert-Equal ($script:context.Items.Contains($script:settingsMenuUi.AINotice)) $true 'AI notice appears in the main settings menu'
   Assert-Equal $script:settingsMenuUi.AINotice.IsEnabled $false 'AI notice cannot trigger an action'
   Assert-Equal ($script:settingsMenuUi.AINotice.ToolTip.Contains('均由 AI 生成')) $true 'AI scope and validation warning is available in the tooltip'
@@ -163,7 +199,7 @@ try{
   Assert-Equal $script:settingsMenuUi.MusicEnabled.IsChecked $false 'Music capture starts only after an explicit enable'
   Assert-Equal $script:settingsMenuUi.MusicEnabled.Items.Count 0 'Music is one direct toggle without a second mode'
   Assert-Equal ($null-eq $script:settingsMenuUi.MusicColor) $true 'Music color has no separate toggle'
-  $expected=@('查看额度','刷新额度','换一句台词','更换形象','外观设置','重力与弹性','声音与点击','编辑我的语录','音乐律动','自动语录','回答结束提醒','显示与位置','更新','退出 GPT 娘')
+  $expected=@('查看额度','刷新额度','换一句台词','更换形象','外观设置','重力与弹性','声音与点击','编辑我的语录','音乐律动','音乐设置','自动语录','回答结束提醒','显示与位置','更新','退出 GPT 娘')
   $actual=@($script:context.Items|Where-Object{$_.Header-is [string]}|ForEach-Object{$_.Header})
   Assert-Equal ($actual-join '|') ($expected-join '|') 'Menu entries and removed title block'
   Assert-Equal $script:settingsMenuUi.Completion.IsChecked $false 'Reply reminders default off'

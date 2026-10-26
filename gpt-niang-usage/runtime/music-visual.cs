@@ -12,6 +12,13 @@ public sealed class GptMusicMotion {
     // AI-generated tuning; insufficiently validated. Beat travel only; throws
     // retain their existing pointer-derived momentum and collision response.
     const double BeatTravelSpeedDip=35;
+    // AI-generated setting; insufficiently validated. Only active beat travel
+    // uses this multiplier; pointer momentum and collision physics retain their scale.
+    double travelSpeedMultiplier=1;
+    public double TravelSpeedMultiplier {
+        get{return travelSpeedMultiplier;}
+        set{travelSpeedMultiplier=Double.IsNaN(value)||Double.IsInfinity(value)?1:Clamp(value,0,2);}
+    }
     public double X,Y,Vx,Vy,Floor,Width,FigureWidth,Dpi,Time,Bend,BendSpeed,Rock,RockSpeed,Lamp,LampSpeed,Pulse,Energy,Cycle;
     public int Impacts,Phase;public double Props;public int Direction=-1;
     double landed,lockStartPose,lastPointerX,lastPointerY,flightCeiling,pointerIdle;bool wasLocked,hasPointer,throwMomentum;
@@ -126,7 +133,7 @@ public sealed class GptMusicMotion {
         if(X<margin)Direction=1;if(X>Width-margin)Direction=-1;
         double available=Direction<0?X-margin:Width-margin-X;
         double rate=locked?4:10;
-        double wanted=Direction*BeatTravelSpeedDip*Dpi*Energy*Math.Min(1,Math.Max(0,available)/(28*Dpi)),decay=Math.Exp(-dt*rate),old=Vx;
+        double wanted=Direction*BeatTravelSpeedDip*TravelSpeedMultiplier*Dpi*Energy*Math.Min(1,Math.Max(0,available)/(28*Dpi)),decay=Math.Exp(-dt*rate),old=Vx;
         Vx=wanted+(old-wanted)*decay;X+=wanted*dt+(old-wanted)*(1-decay)/rate;
         if(X<margin+1*Dpi&&Direction<0)Direction=1;if(X>Width-margin-1*Dpi&&Direction>0)Direction=-1;
         X=Clamp(X,FlightMargin,Math.Max(FlightMargin,Width-FlightMargin));

@@ -263,6 +263,27 @@ function Initialize-WidgetSettingsMenu {
   Add-SettingsAction '编辑我的语录' {Open-QuoteEditor}
   $script:settingsMenuUi.MusicEnabled=Add-SettingsAction '音乐律动' {param($sender,$event)Set-WidgetMusicEnabled ([bool]$sender.IsChecked);$script:context.IsOpen=$false} -Checkable -ReturnItem
   $script:settingsMenuUi.MusicEnabled.ToolTip='先听几拍确认节奏，再跟拍。拿起时按设置的双倍概率决定人物是否变色；拖动后松手可甩出，碰边反弹、落地继续跟拍。关闭后恢复原位置。'
+  # AI-generated music control; insufficiently validated. Preference works with capture off.
+  $script:settingsMenuUi.MusicSettings=Add-SettingsSubmenu '音乐设置' {
+    $travel=New-SettingsSlider '横移速度' 0 200 10
+    $script:settingsMenuUi.MusicTravelSpeed=$travel.Slider;$script:settingsMenuUi.MusicTravelSpeedText=$travel.Value
+    Add-SettingsPanel $travel.Panel
+    $travel.Slider.Add_ValueChanged({
+      param($sender,$event)
+      if($script:settingsMenuSync){return}
+      Set-WidgetMusicTravelSpeedPercent $sender.Value
+      # Normalizing the thumb raises ValueChanged again; suppress that nested save.
+      $script:settingsMenuSync=$true
+      try{
+        $sender.Value=$script:musicTravelSpeedPercent
+        $script:settingsMenuUi.MusicTravelSpeedText.Text=$script:musicTravelSpeedPercent.ToString('0')+'%'
+      }finally{$script:settingsMenuSync=$false}
+      Save-Settings
+    })
+    $hint=New-SettingsText '0% 仅停止主动横移，仍会跟拍；拖动松手的甩出速度独立。100% 为默认速度。' 11.5 '#927AAB'
+    $hint.TextWrapping=[Windows.TextWrapping]::Wrap;$hint.Margin=[Windows.Thickness]::new(0,8,0,0)
+    Add-SettingsPanel $hint -Passive
+  } -ReturnItem
   $script:settingsMenuUi.AutoQuotes=Add-SettingsSubmenu '自动语录' {
     $script:settingsMenuUi.AutoQuoteEnabled=Add-SettingsAction '开启自动语录' {param($sender,$event)Set-WidgetAutoQuoteSettings ([bool]$sender.IsChecked) $script:autoQuoteIntervalSeconds;Update-WidgetSettingsMenu} -Checkable -ReturnItem
   Add-SettingsDivider
@@ -347,6 +368,7 @@ function Update-WidgetSettingsMenu{
   try{
     Update-WidgetUpdateMenu
     $script:settingsMenuUi.MusicEnabled.IsChecked=Test-WidgetMusicActive
+    $script:settingsMenuUi.MusicTravelSpeed.Value=$script:musicTravelSpeedPercent;$script:settingsMenuUi.MusicTravelSpeedText.Text=$script:musicTravelSpeedPercent.ToString('0')+'%'
     $script:settingsMenuUi.Completion.IsChecked=$script:completionNotificationsEnabled
     $script:settingsMenuUi.AutoQuoteEnabled.IsChecked=$script:autoQuoteEnabled
     foreach($choice in $script:settingsMenuUi.AutoQuoteIntervals){$choice.IsChecked=[int]$choice.Tag-eq $script:autoQuoteIntervalSeconds}

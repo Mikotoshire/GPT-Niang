@@ -2,6 +2,21 @@ $script:widgetMusic=$null
 $script:musicColorEnabled=$false
 $script:musicLastError=$null
 $script:musicGravitySuspended=$false
+# AI-generated setting; insufficiently validated. Zero stops active travel only.
+$script:musicTravelSpeedPercent=100
+function ConvertTo-WidgetMusicTravelSpeedPercent($Value) {
+  if($null-eq $Value -or $Value-is [bool] -or ($Value-is [string] -and [string]::IsNullOrWhiteSpace($Value))){return 100}
+  try{$number=[double]$Value}catch{return 100}
+  if([double]::IsNaN($number) -or [double]::IsInfinity($number) -or $number-lt 0 -or $number-gt 200){return 100}
+  return [int]([Math]::Round($number/10,0,[MidpointRounding]::AwayFromZero)*10)
+}
+function Initialize-WidgetMusicSettings($Settings) {
+  Set-WidgetMusicTravelSpeedPercent $Settings.musicTravelSpeedPercent
+}
+function Set-WidgetMusicTravelSpeedPercent($Value) {
+  $script:musicTravelSpeedPercent=ConvertTo-WidgetMusicTravelSpeedPercent $Value
+  if($script:widgetMusic -and $script:widgetMusic.Motion){$script:widgetMusic.Motion.TravelSpeedMultiplier=$script:musicTravelSpeedPercent/100.0}
+}
 function Initialize-WidgetMusicTypes {
   if('GptMusicVisual' -as [type]){return}
   Add-Type -AssemblyName PresentationFramework,PresentationCore,WindowsBase,System.Xaml,System.Windows.Forms,System.Drawing
@@ -70,6 +85,8 @@ function Update-WidgetMusicPlacement($Frame,[double]$Dpi,[double]$X,[double]$Y,[
   try{
     $blocked=[bool]($script:settingsSizePreview -or ($script:characterGallery -and $script:characterGallery.IsVisible) -or ($script:quoteEditor -and $script:quoteEditor.IsVisible))
     $script:widgetMusic.Configure($script:widgetHandle,$script:hostHandle,$script:followHost,$Visible,$blocked,$script:desktopTopmost,$X,$Y,$Frame.Left,$Frame.Bottom,$Dpi)
+    # Configure can create a new Motion after music has been reopened.
+    if($script:widgetMusic.Motion){$script:widgetMusic.Motion.TravelSpeedMultiplier=$script:musicTravelSpeedPercent/100.0}
   }catch{
     # A music placement failure must not truncate the rest of Tick-Widget.
     $script:musicLastError=$_.Exception.Message
@@ -87,9 +104,9 @@ function Update-WidgetMusicVisibility([bool]$Visible,[bool]$Blocked=$false) {
   }
 }
 function Get-WidgetMusicStatus {
-  if(!(Test-WidgetMusicActive)){return @{enabled=$false;color=$script:musicColorEnabled;error=if($script:widgetMusic -and $script:widgetMusic.Error){$script:widgetMusic.Error}else{$script:musicLastError}}}
+  if(!(Test-WidgetMusicActive)){return @{enabled=$false;musicTravelSpeedPercent=$script:musicTravelSpeedPercent;color=$script:musicColorEnabled;error=if($script:widgetMusic -and $script:widgetMusic.Error){$script:widgetMusic.Error}else{$script:musicLastError}}}
   $a=$script:widgetMusic.Audio;$m=$script:widgetMusic.Motion
-  return @{enabled=$true;color=$script:musicColorEnabled;paused=$script:widgetMusic.Paused;running=[bool]($a -and $a.Running);source=if($a){$a.Source}else{'system-playback'};sourceProcessId=if($a){$a.SourceProcessId}else{0};captureReadyMs=if($a){$a.CaptureReadyMs}else{0};firstPacketMs=if($a){$a.FirstPacketMs}else{0};
+  return @{enabled=$true;musicTravelSpeedPercent=$script:musicTravelSpeedPercent;color=$script:musicColorEnabled;paused=$script:widgetMusic.Paused;running=[bool]($a -and $a.Running);source=if($a){$a.Source}else{'system-playback'};sourceProcessId=if($a){$a.SourceProcessId}else{0};captureReadyMs=if($a){$a.CaptureReadyMs}else{0};firstPacketMs=if($a){$a.FirstPacketMs}else{0};
     beats=if($a){$a.BeatSequence}else{0};onsets=if($a){$a.Sequence}else{0};rhythmLocked=[bool]($a -and $a.RhythmLocked);bpm=if($a){$a.Bpm}else{0};confidence=if($a){$a.Confidence}else{0};
     tracking=if(!$a -or !$a.RhythmLocked){'acquiring'}elseif($a.BassCycle){'bass-cycle'}else{'onsets'};
     nextBeatAtMs=if($a){$a.NextBeatAtMs}else{0};periodMs=if($a){$a.PeriodMs}else{0};audioLagMs=if($a){$a.AudioLagMs}else{0};

@@ -45,6 +45,10 @@ $source=[IO.File]::ReadAllText((Join-Path $AppDir 'widget.ps1'),[Text.Encoding]:
   foreach($completionValue in @($true,$false,'false')){
     $cases+=@{name=('reply reminder '+$completionValue);id='test-alternative';follow=$true;volume=0.37;expected='test-alternative';completion=$completionValue}
   }
+  # AI-generated maintenance; insufficiently validated. See AI-NOTICE.md.
+  foreach($musicValue in @(0,200,'invalid')){
+    $cases+=@{name=('music travel speed '+$musicValue);id='test-alternative';follow=$true;volume=0.37;expected='test-alternative';musicSpeed=$musicValue}
+  }
   foreach($case in $cases){
     if($null-ne $case.id){[IO.File]::WriteAllText($settings,(@{characterId=$case.id;scale=0.6;followHost=$case.follow;soundVolume=$case.volume;layoutVersion=2;right=781.6;left=54.4;bottom=87.2}|ConvertTo-Json),[Text.UTF8Encoding]::new($false))}
     elseif([IO.File]::Exists($settings)){[IO.File]::Delete($settings)}
@@ -62,6 +66,11 @@ $source=[IO.File]::ReadAllText((Join-Path $AppDir 'widget.ps1'),[Text.Encoding]:
     if($case.ContainsKey('completion')){
       $saved=Get-Content -LiteralPath $settings -Raw -Encoding UTF8|ConvertFrom-Json
       $saved|Add-Member -NotePropertyName taskCompletionBubble -NotePropertyValue $case.completion
+      [IO.File]::WriteAllText($settings,($saved|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+    }
+    if($case.ContainsKey('musicSpeed')){
+      $saved=Get-Content -LiteralPath $settings -Raw -Encoding UTF8|ConvertFrom-Json
+      $saved|Add-Member -NotePropertyName musicTravelSpeedPercent -NotePropertyValue $case.musicSpeed
       [IO.File]::WriteAllText($settings,($saved|ConvertTo-Json),[Text.UTF8Encoding]::new($false))
     }
     $settingsBefore=if([IO.File]::Exists($settings)){[IO.File]::ReadAllText($settings)}else{$null}
@@ -84,6 +93,8 @@ $source=[IO.File]::ReadAllText((Join-Path $AppDir 'widget.ps1'),[Text.Encoding]:
     $completionExpected=$case.ContainsKey('completion') -and $case.completion-is [bool] -and $case.completion
     if($result.completion.enabled-ne $completionExpected -or $result.completion.monitorPid-ne 0){throw 'CheckOnly did not restore strict reminder preference without starting a process'}
     if($result.dataDir-ne $fixtureData){throw 'Startup escaped the isolated fixture data directory'}
+    $expectedMusic=if($case.ContainsKey('musicSpeed') -and $case.musicSpeed-is [int]){$case.musicSpeed}else{100}
+    if($null-eq $result.music -or $result.music.enabled -or $result.music.musicTravelSpeedPercent-ne $expectedMusic){throw 'Startup did not restore music travel preference without starting capture'}
     $settingsAfter=if([IO.File]::Exists($settings)){[IO.File]::ReadAllText($settings)}else{$null}
     if($settingsAfter-cne $settingsBefore){throw 'CheckOnly unexpectedly persisted startup fallback'}
     Write-Output ('PASS: complete isolated CheckOnly startup - '+$case.name+' -> '+$result.characterId+', sound volume '+$result.soundVolume)
