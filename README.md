@@ -2,13 +2,13 @@
 
 > **AI 生成与验证声明：** 本维护分支相对上游的修改，以及新增或改写的文档，均由 AI 生成，且未经充分验证或独立人工审查。现有自动化测试与 AI 自查仅覆盖有限场景，不能保证正确性、稳定性、安全性或完整合规性，可能存在未发现的问题。仅供试用，请自行评估并备份重要数据。此声明不将上游原作或第三方依赖归为 AI 生成，也不改变原许可和权利归属。
 
-基于 [T7moris/GPT-Niang](https://github.com/T7moris/GPT-Niang) 的非官方维护版本。当前源码合并了上游 v1.3.5（b6f5eb8）；已发布的 Windows 1.5.0 安装包不包含本次未发布合并。代码保留 MIT 与原作者署名；角色素材有独立使用范围。本维护版与 OpenAI、上游作者不存在官方发布关系。
+基于 [T7moris/GPT-Niang](https://github.com/T7moris/GPT-Niang) 的非官方维护版本。当前源码合并了上游 v1.3.5（b6f5eb8）；Windows 1.5.1 测试版包含此合并及个人版兼容修改。代码保留 MIT 与原作者署名；角色素材有独立使用范围。本维护版与 OpenAI、上游作者不存在官方发布关系。
 
 当前源码新增上游的本地角色库、角色与气泡独立缩放、音乐律动、自动语录、按压音效导入和完成提醒。个人版适配保留重力/弹性参数、手动镜像、额度成功缓存和有界重连；音乐及临时提醒接管位置时暂停重力，结束后从实际窗口位置恢复。音乐捕获和完成监控等功能可在菜单中选用。导入素材仅在本机使用，权利与隐私由使用者确认，勿将个人文件提交到公开仓库。合并仍需真实使用验收，详见 [维护笔记](codex.md)。
 
 ## 下载与安装
 
-1. 在[本仓库 Releases](https://github.com/Mikotoshire/GPT-Niang/releases) 下载 `gpt-niang-mikotoshire-v1.5.0-windows.zip`；维护版标记为 Pre-release，供非商业小范围试用。
+1. 在[本仓库 Releases](https://github.com/Mikotoshire/GPT-Niang/releases) 下载 `gpt-niang-mikotoshire-v1.5.1-windows.zip`；维护版标记为 Pre-release，供非商业小范围试用。
 2. 需要 Windows 10/11、Node.js 20+ 和已用你自己的 ChatGPT 账号登录的 Codex 桌面端。Node.js 请从 [nodejs.org](https://nodejs.org/) 获取。安装包不包含 Node.js，也不需要 Python、Git 或开发工具。
 3. 完整解压到准备长期保留的文件夹，再双击根目录 `安装GPT娘.cmd`。安装会注册本地插件、当前用户的登录启动任务和启动快捷方式。插件后台随 Codex 窗口出现显示；请勿直接在 ZIP 内运行或安装后移动文件夹。
 4. 手动打开用 `打开GPT娘.cmd`。停止使用并移除启动与插件注册用 `停用GPT娘.cmd`，偏好数据会保留。
@@ -32,7 +32,7 @@
 
 升级前在本机备份原安装目录与偏好，不要将包含机器配置的备份上传 GitHub。先运行原目录的 `停用GPT娘.cmd`，把新 ZIP 内 `GPT-Niang-Mikotoshire` 的内容覆盖到同一安装目录，保留 ZIP 未包含的机器配置，再运行 `安装GPT娘.cmd`。勿同时运行两个副本。
 
-本次 1.5.0 增加弹性、动画与摩擦设置；已有合法偏好优先，旧设置会按兼容逻辑读取。运行文件清单与 1.4.4 相同。需要回退时，先停用新版，再将 [1.4.4 原 ZIP](https://github.com/Mikotoshire/GPT-Niang/releases/tag/mikotoshire-v1.4.4-preview.1) 覆盖到同一目录并重新安装，恢复升级前的本机偏好备份。旧版不会理解新版全部设置；新增字段可能保留但不生效，手感可能变化。核对同页 SHA256、包内 SOURCE.json 和 FILE-MANIFEST.json；旧版已知问题仍存在。
+本次 1.5.1 合并上游新增功能，增加音乐横移速度滑条与触底摩擦状态兜底，并保留已有合法偏好。运行文件清单有所增加，请完整解压并覆盖项目文件，勿仅替换 widget.ps1。回退前先停用新版，再用 [1.5.0 原 ZIP](https://github.com/Mikotoshire/GPT-Niang/releases/tag/mikotoshire-v1.5.0-preview.1) 恢复同一安装目录，恢复升级前本机偏好并重新安装；旧版不理解新版全部字段。核对同页 SHA256、SOURCE.json 和 FILE-MANIFEST.json；旧版已知问题仍存在。
 
 源码修正通过新提交记录；不强制推送或移动旧发布标签，不覆盖旧版附件。每个新版本对应独立标签、完整源码提交和安装包校验值，便于比较、复现及选择旧版。
 

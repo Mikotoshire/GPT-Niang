@@ -1,6 +1,6 @@
 {
   "name": "gpt-niang-usage",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "AI 生成修改、未经充分验证的 GPT娘 Windows 维护版",
   "mcpServers": "./.mcp.json",
   "interface": {
