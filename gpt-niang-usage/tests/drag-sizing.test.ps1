@@ -47,6 +47,8 @@ function Get-WidgetPlacementDpi {return $script:testDpi}
 function Set-Facing {}
 # Actual physical sizing is exercised against real HWNDs by display/size tests.
 function Set-WidgetPixelSize {}
+# Geometry is covered with real HWNDs by resize-containment; this fixture checks sizing only.
+function Update-WidgetHostCharacterBounds {}
 $validFrame=$ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq 'Test-WidgetPlacementFrame'},$true)
 . ([ScriptBlock]::Create($validFrame.Extent.Text))
 $script:designWidth=378;$script:designHeight=378
@@ -72,6 +74,8 @@ $script:hostReadiness=[pscustomobject]@{desktopStarted=$true}
 $script:context=[pscustomobject]@{IsOpen=$false}
 $script:hostFollower=New-Object PSObject
 $script:hostFollower|Add-Member ScriptMethod Configure {}
+$script:hostFollower|Add-Member ScriptMethod ConstrainX {param($x,$left,$right)return $x}
+$script:hostFollower|Add-Member ScriptMethod ConstrainY {param($y,$top,$bottom)return $y}
 $script:hostFollower|Add-Member ScriptMethod Suspend {}
 $script:lastForeground=[IntPtr](1);$script:attachedHost=[IntPtr](1)
 $script:lastPresence=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()+3600000

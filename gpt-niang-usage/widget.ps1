@@ -214,6 +214,7 @@ function Set-WidgetCharacter([string]$Id,[switch]$NoSave) {
   try{
     $script:bitmap=$image;$script:alphaBitmap=$alpha;$script:alphaStride=$stride;$script:alphaPixels=$pixels
     $script:characterId=$character.id;$script:activeCharacter=$character;$script:ui.Girl.Source=$image
+    $script:hostCharacterBoundsReady=$false
     if($script:widgetColors){
       foreach($overlay in @($script:widgetColors.halo,$script:widgetColors.tint)){
         if($overlay -and $overlay.OpacityMask){$overlay.OpacityMask.ImageSource=$image;$overlay.OpacityMask.Stretch=[Windows.Media.Stretch]::Uniform}
@@ -274,6 +275,7 @@ function Get-WidgetLayoutScale {
   return [Math]::Max([double]$script:scale,$bubble)
 }
 function Set-WidgetIndependentLayout {
+  $script:hostCharacterBoundsReady=$false
   if(!$script:ui.Girl){return}
   $layoutScale=Get-WidgetLayoutScale
   $bubbleScale=if($script:bubbleScale-ge 0.6 -and $script:bubbleScale-le 2.5){[double]$script:bubbleScale}else{[double]$script:scale}
@@ -339,6 +341,23 @@ function Set-Appearance {
 function Test-WidgetPlacementFrame($Frame,[double]$Dpi=1) {
   return $Frame -and $Dpi-gt 0 -and ($Frame.Right-$Frame.Left)-ge 64*$Dpi -and ($Frame.Bottom-$Frame.Top)-ge 64*$Dpi
 }
+function Update-WidgetHostCharacterBounds([int]$Width,[int]$Height) {
+  # AI-generated cached resting bounds; insufficiently validated. See AI-NOTICE.md.
+  if(!$script:hostFollower){return}
+  if($script:hostCharacterBoundsReady -and $script:hostCharacterBoundsWidth-eq $Width -and $script:hostCharacterBoundsHeight-eq $Height){return}
+  $girl=$script:ui.Girl;$root=$script:ui.Root
+  $drawWidth=$girl.Width;$drawHeight=$girl.Height
+  if($girl.Source -and $girl.Stretch-eq [Windows.Media.Stretch]::Uniform){
+    $fit=[Math]::Min($girl.Width/$girl.Source.Width,$girl.Height/$girl.Source.Height)
+    $drawWidth=$girl.Source.Width*$fit;$drawHeight=$girl.Source.Height*$fit
+  }
+  $unit=[Math]::Min($Width/$script:designWidth,$Height/$script:designHeight)
+  $left=($Width-$script:designWidth*$unit)/2+([Windows.Controls.Canvas]::GetLeft($root)+[Windows.Controls.Canvas]::GetLeft($girl)+($girl.Width-$drawWidth)/2)*$unit
+  $top=($Height-$script:designHeight*$unit)/2+([Windows.Controls.Canvas]::GetTop($root)+[Windows.Controls.Canvas]::GetTop($girl)+($girl.Height-$drawHeight)/2)*$unit
+  $script:hostFollower.SetCharacterBounds($left,$top,($left+$drawWidth*$unit),($top+$drawHeight*$unit))
+  $script:hostCharacterBoundsWidth=$Width;$script:hostCharacterBoundsHeight=$Height
+  $script:hostCharacterBoundsReady=$true
+}
 function Limit-WidgetHorizontalPosition($Frame,[double]$Dpi,[double]$Left) {
   # Mirror-aware character bounds; transparent bubble space may extend outside.
   # Use the resting layout so press/rebound never changes the drag limits.
@@ -393,7 +412,7 @@ function Set-WidgetPixelSize([double]$dpi){
   $width=$pixels/$sx;$height=$pixelHeight/$sy;$changed=$false
   if([Math]::Abs($script:window.Width-$width)-gt 0.01){$script:window.Width=$width;$changed=$true}
   if([Math]::Abs($script:window.Height-$height)-gt 0.01){$script:window.Height=$height;$changed=$true}
-  if($changed){$script:window.UpdateLayout()}
+  if($changed){$script:window.UpdateLayout();$script:hostCharacterBoundsReady=$false}
   return [int][Math]::Round($pixels)
 }
 function Set-AnimatedValue($target,$property,[double]$value) {
@@ -1090,6 +1109,7 @@ function Tick-Widget {
       $null=Set-WidgetPixelSize $dpi
       $gravityGeometry=if($script:gravityEnabled -and !(Test-WidgetGravityMotionSuspended)){Get-WidgetGravityGeometry}else{$null}
       $w=if($gravityGeometry){$gravityGeometry.Width}else{[int]($script:designWidth*$script:displayScale*$dpi)};$h=if($gravityGeometry){$gravityGeometry.Height}else{[int]($script:designHeight*$script:displayScale*$dpi)}
+      if($script:followHost -and $script:hostFollower){Update-WidgetHostCharacterBounds $w $h}
       if(!$script:followHost){
         if($null-eq $script:desktopLeft){$script:desktopLeft=$frame.Right-$w-24;$script:desktopTop=$frame.Bottom-$h-24}
         $x=[int]$script:desktopLeft
@@ -1104,6 +1124,10 @@ function Tick-Widget {
       $floorPadding=if($gravityGeometry){$gravityGeometry.Padding}else{0}
       $desiredY=if($gravityGeometry){$frame.Bottom-$h+$floorPadding-$script:gravity.Height*$gravityGeometry.Unit}elseif($script:followHost){$frame.Bottom-$h-$script:offsetBottom*$dpi}else{$script:desktopTop}
       $y=if($gravityGeometry){[int][Math]::Max($frame.Top,[Math]::Min($frame.Bottom-$h+$floorPadding,$desiredY))}elseif($script:followHost){[int]$desiredY}else{Limit-WidgetVerticalPosition $frame $dpi $desiredY}
+      if($script:followHost -and $script:hostFollower){
+        $x=$script:hostFollower.ConstrainX($x,$frame.Left,$frame.Right)
+        $y=$script:hostFollower.ConstrainY($y,$frame.Top,$frame.Bottom)
+      }
       $position="$($script:hostHandle):$x,$y,$w,$h"
       if($position-ne $script:lastPosition -and !(Test-WidgetMusicActive)){
         [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr]::Zero,$x,$y,0,0,0x415)|Out-Null

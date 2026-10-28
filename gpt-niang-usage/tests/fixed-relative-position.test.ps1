@@ -32,7 +32,7 @@ public static class FixedPositionProbeNative {
 }
 '@
 $null=[FixedPositionProbeNative]::SetThreadDpiAwarenessContext([IntPtr](-4))
-foreach($name in @('Get-WidgetLayoutScale','Get-WidgetPlacementFrame','Get-WidgetPlacementDpi','Test-WidgetPlacementFrame','Get-WidgetVisibleFrame','Set-Appearance')){
+foreach($name in @('Get-WidgetLayoutScale','Get-WidgetPlacementFrame','Get-WidgetPlacementDpi','Test-WidgetPlacementFrame','Get-WidgetVisibleFrame','Set-Appearance','Update-WidgetHostCharacterBounds')){
  $fn=$ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq $name},$true)
  if(!$fn){throw ('Missing '+$name)}
  . ([scriptblock]::Create($fn.Extent.Text))

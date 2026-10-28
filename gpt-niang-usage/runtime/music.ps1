@@ -37,11 +37,20 @@ function Set-WidgetMusicPickupColor {
   $script:widgetMusic.ColorEnabled=$script:musicColorEnabled
   $script:widgetMusic.Redraw()
 }
+function Sync-WidgetMusicContainment {
+  # AI-generated layout integration; insufficiently validated. See AI-NOTICE.md.
+  $script:hostCharacterBoundsReady=$false
+  if($script:followHost -and $script:hostFollower -and $script:hostCharacterBoundsWidth-gt 0 -and (Get-Command Update-WidgetHostCharacterBounds -ErrorAction SilentlyContinue)){
+    Update-WidgetHostCharacterBounds $script:hostCharacterBoundsWidth $script:hostCharacterBoundsHeight
+    $null=$script:hostFollower.Synchronize()
+  }
+}
 function Stop-WidgetMusic([switch]$KeepPosition) {
   try{if($script:widgetMusic){
     $state=$script:widgetMusic;$script:widgetMusic=$null
     try{$state.Stop([bool]$KeepPosition)}finally{if($state.Error){$script:musicLastError=$state.Error}}
   }}finally{
+    Sync-WidgetMusicContainment
     if($script:musicGravitySuspended){
       $script:musicGravitySuspended=$false
       if(Get-Command Resume-WidgetGravityFromNativePosition -ErrorAction SilentlyContinue){Resume-WidgetGravityFromNativePosition 'music'}
@@ -69,6 +78,7 @@ function Set-WidgetMusicEnabled([bool]$Enabled) {
       Suspend-WidgetGravityForTransientMotion 'music'
     }
     $script:widgetMusic=[GptMusicVisual]::new($script:window,$script:ui.Girl,$script:ui.Bubble,$move,$colors,($script:characterId-eq 'gpt-dragon'))
+    Sync-WidgetMusicContainment
     $script:widgetMusic.FollowLamp=[Delegate]::CreateDelegate([Action[IntPtr,int,int,int]],$script:hostFollower,'SetCompanion')
     $script:widgetMusic.HostFrame=[Delegate]::CreateDelegate([Func[int[]]],$script:hostFollower,'GetFrame')
     Update-WidgetMusicPlacement (Get-WidgetPlacementFrame) (Get-WidgetPlacementDpi) $normal.Left $normal.Top $true

@@ -13,7 +13,7 @@ $null=[GptWidgetNative]::SetThreadDpiAwarenessContext([IntPtr](-4))
 $tokens=$null;$errors=$null
 $ast=[Management.Automation.Language.Parser]::ParseInput($source,[ref]$tokens,[ref]$errors)
 if($errors.Count){throw ($errors|Out-String)}
-foreach($name in @('Set-WidgetPixelSize','Set-AnimatedValue','Save-Settings','Get-WidgetVisibleFrame')){
+foreach($name in @('Set-WidgetPixelSize','Set-AnimatedValue','Save-Settings','Get-WidgetVisibleFrame','Update-WidgetHostCharacterBounds')){
   $node=$ast.Find({param($n)$n-is [Management.Automation.Language.FunctionDefinitionAst] -and $n.Name-eq $name},$true)
   . ([scriptblock]::Create($node.Extent.Text))
 }
@@ -82,6 +82,7 @@ public static class FrameStressHost {
   $null=Set-WidgetPixelSize $script:testDpi
   $hostFrame=Get-WidgetPlacementFrame;$geometry=Get-WidgetGravityGeometry
   $script:hostFollower=[GptWidgetHostFollower]::new($script:widgetHandle)
+  Update-WidgetHostCharacterBounds $geometry.Width $geometry.Height
   $script:hostFollower.Configure($script:hostHandle,$hostFrame.Left,$hostFrame.Top,$hostFrame.Right,$hostFrame.Bottom,$geometry.Width,$geometry.Height,50,50,0,'free',$true)
   [GptWidgetNative]::SetWindowPos($script:widgetHandle,[IntPtr](-1),0,0,0,0,0x13)|Out-Null
 }

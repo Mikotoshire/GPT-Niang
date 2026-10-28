@@ -36,6 +36,19 @@ public sealed class GptWidgetHostFollower : IDisposable {
  string anchor;
  bool enabled,hiddenByHost,disposed;
  int temporaryX,temporaryY;
+ // AI-generated containment; insufficiently validated. See AI-NOTICE.md.
+ double characterLeft,characterTop,characterRight,characterBottom;
+ bool containCharacter;
+ public void SetCharacterBounds(double left,double top,double right,double bottom){
+  characterLeft=left;characterTop=top;characterRight=right;characterBottom=bottom;
+  containCharacter=right>left&&bottom>top;
+ }
+ static int Constrain(int value,double minimum,double maximum){
+  if(maximum<minimum)return (int)Math.Round((minimum+maximum)/2);
+  return (int)Math.Max(Math.Ceiling(minimum),Math.Min(Math.Floor(maximum),value));
+ }
+ public int ConstrainX(int value,int left,int right){return containCharacter?Constrain(value,left-characterLeft,right-characterRight):value;}
+ public int ConstrainY(int value,int top,int bottom){return containCharacter?Constrain(value,top-characterTop,bottom-characterBottom):value;}
  IntPtr companion;
  int companionWidth,companionHeight,companionTop;
  public long MovementEvents {get;private set;}
@@ -147,6 +160,12 @@ public sealed class GptWidgetHostFollower : IDisposable {
   }
   int px=anchor=="right"?frame.Right-width-right:frame.Left+left;
   int py=frame.Bottom-height-bottom;
+  // Constrain the resting artwork, not transparent bubble space or transient squash.
+  // This runs in the existing native follow callback, including resize and music moves.
+  if(containCharacter){
+   px=ConstrainX(px+temporaryX,frame.Left,frame.Right)-temporaryX;
+   py=ConstrainY(py+temporaryY,frame.Top,frame.Bottom)-temporaryY;
+  }
   IntPtr monitor=MonitorFromPoint(new Point{X=px+temporaryX+width/2,Y=py+temporaryY+height/2},2);
   if(selectedMonitor!=IntPtr.Zero&&monitor!=selectedMonitor&&!LayoutDirty){LayoutDirty=true;if(LayoutRequested!=null)LayoutRequested();}
   selectedMonitor=monitor;
