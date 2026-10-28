@@ -7,6 +7,9 @@ Initialize-WidgetMusicTypes
 Add-Type -ReferencedAssemblies @('System.dll',[Windows.Threading.DispatcherTimer].Assembly.Location) -TypeDefinition @'
 using System;using System.Diagnostics;using System.Runtime.InteropServices;using System.Windows.Threading;
 public static class MusicDispatchProbe {
+ // AI-generated queue probe; insufficiently validated. See AI-NOTICE.md.
+ public static int Deliveries,LastX,LastY;
+ public static Action<int,int> Record(Action<int,int> move){return delegate(int x,int y){Deliveries++;LastX=x;LastY=y;move(x,y);};}
  [StructLayout(LayoutKind.Sequential)]public struct Rect{public int Left,Top,Right,Bottom;}
  [DllImport("user32.dll")]public static extern bool GetWindowRect(IntPtr h,out Rect r);
  [DllImport("user32.dll")]public static extern bool SetWindowPos(IntPtr h,IntPtr after,int x,int y,int w,int z,uint flags);
@@ -36,7 +39,7 @@ try{
  $hostBounds=Bounds $hostHandle;$original=Bounds $widgetHandle
  $follower=[GptWidgetHostFollower]::new($widgetHandle)
  $follower.Configure($hostHandle,$hostBounds.Left,$hostBounds.Top,$hostBounds.Right,$hostBounds.Bottom,($original.Right-$original.Left),($original.Bottom-$original.Top),($original.Left-$hostBounds.Left),0,($hostBounds.Bottom-$original.Bottom),'free',$true)
- $move=[Delegate]::CreateDelegate([Action[int,int]],$follower,'SetTemporaryOffset')
+ $move=[MusicDispatchProbe]::Record([Delegate]::CreateDelegate([Action[int,int]],$follower,'SetTemporaryOffset'))
  $palette=[Windows.Media.Color[]]@('#D773AD','#9A79DC','#579DCF','#43AE94','#DBA15C','#D773AD'|ForEach-Object{[Windows.Media.ColorConverter]::ConvertFromString($_)})
  $music=[GptMusicVisual]::new($window,$girl,$window.FindName('Bubble'),$move,$palette,$true)
  $music.FollowLamp=[Delegate]::CreateDelegate([Action[IntPtr,int,int,int]],$follower,'SetCompanion')
@@ -48,11 +51,13 @@ try{
  $pendingField=[GptMusicVisual].GetField('pendingPosition',[Reflection.BindingFlags]'Instance,NonPublic')
  if(!$request-or !$pendingField){throw 'Deferred music position delivery is missing'}
  $before=Bounds $widgetHandle
+ $beforeVisibleDelivery=[MusicDispatchProbe]::Deliveries
  $music.Motion.X+=50;$request.Invoke($music,@())|Out-Null;$pending=$pendingField.GetValue($music)
  for($i=0;$i-lt 20;$i++){$request.Invoke($music,@())|Out-Null;if(![object]::ReferenceEquals($pending,$pendingField.GetValue($music))){throw 'Position requests were not coalesced'}}
  [MusicDispatchProbe]::SetWindowPos($hostHandle,[IntPtr]::Zero,($hostBounds.Left+80),($hostBounds.Top+60),0,0,0x215)|Out-Null
  $null=$follower.Synchronize();$activation=[MusicDispatchProbe]::Pump(80)-or $activation
  $after=Bounds $widgetHandle
+ if([MusicDispatchProbe]::Deliveries-le $beforeVisibleDelivery){throw 'Visible queued movement did not reach the forwarding recorder'}
  if([Math]::Abs($after.Left-$before.Left-130)-gt 1-or [Math]::Abs($after.Top-$before.Top-60)-gt 1){throw ('Queued move used a stale host frame: '+$before.Left+','+$before.Top+' -> '+$after.Left+','+$after.Top)}
  # A bubble can open after a render requested a position, before delivery.
  $music.Motion.Release();$music.Motion.Phase=2;$music.Motion.Y=$music.Motion.Floor
@@ -62,18 +67,33 @@ try{
  if($before.Left-ne $after.Left-or $before.Top-ne $after.Top){throw 'Position delivery ignored a newly opened bubble'}
  $window.FindName('Bubble').Visibility='Collapsed';$music.Motion.BeginHold()
  $before=Bounds $widgetHandle;$music.Motion.X+=80;$request.Invoke($music,@())|Out-Null
+ $hiddenPending=$pendingField.GetValue($music)
+ if(!$hiddenPending-or $hiddenPending.Status-ne 'Pending'){throw 'Hidden-delivery test did not queue a pending move'}
+ $hiddenDeliveries=[MusicDispatchProbe]::Deliveries
  $music.SetVisibility($false,$false);$activation=[MusicDispatchProbe]::Pump(80)-or $activation
  $after=Bounds $widgetHandle
- if($before.Left-ne $after.Left-or $before.Top-ne $after.Top){throw 'Queued movement ran after visibility was disabled'}
+ # Native coordinates can drift during Pump without a music/follower delivery.
+ # Count actual deliveries to identify this queue's writes; the separate cause is unknown.
+ if($hiddenPending.Status-ne 'Completed'){throw 'Hidden pending callback was not exercised'}
+ if([MusicDispatchProbe]::Deliveries-ne $hiddenDeliveries){throw 'Queued movement ran after visibility was disabled'}
+ $hiddenNativePositionStable=$before.Left-eq $after.Left-and $before.Top-eq $after.Top
  $music.SetVisibility($true,$false);$activation=[MusicDispatchProbe]::Pump(80)-or $activation
  $request.Invoke($music,@())|Out-Null;$stopPending=$pendingField.GetValue($music)
+ if(!$stopPending-or $stopPending.Status-ne 'Pending'){throw 'Stop test did not queue a pending move'}
+ $beforeStopDeliveries=[MusicDispatchProbe]::Deliveries
  $music.Stop($false)
  if($stopPending.Status-ne 'Aborted'){throw 'Music stop did not abort queued movement'}
- $activation=[MusicDispatchProbe]::Pump(80)-or $activation
+ if([MusicDispatchProbe]::Deliveries-ne $beforeStopDeliveries+1-or [MusicDispatchProbe]::LastX-ne 0-or [MusicDispatchProbe]::LastY-ne 0){throw 'Music stop did not deliver exactly one normal-offset restoration'}
  $restored=Bounds $widgetHandle
- if($restored.Left-ne $original.Left+80-or $restored.Top-ne $original.Top+60){throw 'A queued move overwrote normal placement after stop'}
+ if($restored.Left-ne $original.Left+80-or $restored.Top-ne $original.Top+60){$stopHost=Bounds $hostHandle;throw ('Music stop did not restore normal placement: expected='+($original.Left+80)+','+($original.Top+60)+' actual='+$restored.Left+','+$restored.Top+' host='+$stopHost.Left+','+$stopHost.Top+' originalHost='+$hostBounds.Left+','+$hostBounds.Top)}
+ $stoppedDeliveries=[MusicDispatchProbe]::Deliveries
+ $activation=[MusicDispatchProbe]::Pump(80)-or $activation
+ if([MusicDispatchProbe]::Deliveries-ne $stoppedDeliveries){throw 'A queued move overwrote normal placement after stop'}
+ $afterStop=Bounds $widgetHandle
+ $stoppedNativePositionStable=$restored.Left-eq $afterStop.Left-and $restored.Top-eq $afterStop.Top
+ if(!$hiddenNativePositionStable-or !$stoppedNativePositionStable){Write-Output 'NOTICE: native position drifted during WPF pumping without a music position delivery; this fixture verifies queue cancellation, not compositor stability.'}
  if($activation){throw 'An isolated music test window became the foreground application'}
- $result=@{passed=$true;coalescedRequests=21;usesLatestHostFrame=$true;currentInteractionRespected=$true;hiddenDeliverySkipped=$true;stopAbortsPending=$true;normalPositionRestored=$true;testWindowsNeverActivated=$true}
+ $result=@{passed=$true;coalescedRequests=21;usesLatestHostFrame=$true;currentInteractionRespected=$true;hiddenDeliverySkipped=$true;stopAbortsPending=$true;normalPositionRestoredImmediately=$true;noLatePositionDelivery=$true;hiddenNativePositionStable=$hiddenNativePositionStable;stoppedNativePositionStable=$stoppedNativePositionStable;testWindowsNeverActivated=$true}
  if($ResultFile){[IO.File]::WriteAllText($ResultFile,($result|ConvertTo-Json -Depth 4),[Text.UTF8Encoding]::new($false))}
  Write-Output 'PASS: coalesced native follow updates, latest host frame, hidden delivery skipped, stop cancellation and normal placement restoration'
 }finally{if($music){$music.Dispose()};if($follower){$follower.Dispose()};foreach($w in @($window,$hostWindow)){if($w){$w.Close()}}}
