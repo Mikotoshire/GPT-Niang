@@ -5,6 +5,9 @@
 This is Mikotoshire's personal Windows fork. Read `docs/PERSONAL-FORK.md` before changing deployment or update behavior.
 For current interaction architecture, physics constants and regression checks, also read `codex.md`.
 
+- For implementation, configuration and documentation changes, the coordinator must use the sequential project workflow in [three-role-workflow.md](docs/development/three-role-workflow.md): Astra high planner → Sol medium builder → fresh independent Sol medium verifier. The coordinator coordinates and does not write application runtime code. Plain questions and read-only work do not require all three roles.
+- Apply this pipeline at the coordinator only. Give each worker explicit file ownership; role agents return status to the coordinator and must not recursively spawn the pipeline. Keep one writer active. Use the documented escalation and failure rules; never silently substitute models or claim independent verification when unavailable.
+
 - Preserve upstream Git history, copyright, LICENSE, character artwork/source notices and quotation licenses. Do not imply ownership of third-party artwork.
 - `origin` is `Mikotoshire/GPT-Niang`; `upstream` is reference only. Never push to upstream or automatically install its releases.
 - Keep deployed, tested code on `main`. Use a `personal/<feature>` branch for changes and merge only after appropriate checks. The user's recurring intent is to maintain this personal fork, back up completed changes to their GitHub repository and keep the local installation on that version.

@@ -1,0 +1,7 @@
+# AI-generated project maintenance configuration; insufficiently validated.
+# Preserve upstream/third-party attribution. Project scope only.
+[agents]
+enabled = true
+default_subagent_model = "gpt-6.1-sol"
+default_subagent_reasoning_effort = "medium"
+max_concurrent_threads_per_session = 3
