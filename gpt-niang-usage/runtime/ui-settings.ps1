@@ -309,6 +309,9 @@ function Initialize-WidgetSettingsMenu {
   Add-SettingsDivider
   Add-SettingsAction '恢复右下角位置' {if($script:followHost){$script:offsetRight=0;$script:offsetLeft=0;$script:offsetBottom=0;$script:anchor='right'}else{$script:desktopLeft=$null;$script:desktopTop=$null};if($script:gravityEnabled){$script:gravity.Reset();$script:gravityTimer.Stop();Set-WidgetGravityPose};$script:side='right';$script:lastPosition=$null;Set-Facing;Hide-Quota;Save-Settings;Tick-Widget} -StayOpen
   } -ReturnItem
+  $script:settingsMenuUi.Learning=Add-SettingsAction '余量学习（本轮额度）' {param($sender,$event)Set-WidgetLearningEnabled ([bool]$sender.IsChecked)} -Description '额度重置或重启后自动关闭；关闭将停止当前学习' -Checkable -ReturnItem
+  $script:settingsMenuUi.LearningStatus=Add-SettingsAction '已关闭' {} -ReturnItem
+  $script:settingsMenuUi.LearningStatus.IsEnabled=$false
   $script:settingsMenuUi.Updates=Add-SettingsSubmenu '更新' {
     $script:settingsMenuUi.UpdateVersion=Add-SettingsAction '当前版本' {} -ReturnItem;$script:settingsMenuUi.UpdateVersion.IsEnabled=$false
     $updateLabel=if($script:releaseUpdatesDisabled){'个人版更新说明'}else{'检查并更新'}
@@ -366,6 +369,7 @@ function Update-WidgetCompressionCurvePreview {
 function Update-WidgetSettingsMenu{
   $script:settingsMenuSync=$true
   try{
+    Update-WidgetLearningMenu
     Update-WidgetUpdateMenu
     $script:settingsMenuUi.MusicEnabled.IsChecked=Test-WidgetMusicActive
     $script:settingsMenuUi.MusicTravelSpeed.Value=$script:musicTravelSpeedPercent;$script:settingsMenuUi.MusicTravelSpeedText.Text=$script:musicTravelSpeedPercent.ToString('0')+'%'

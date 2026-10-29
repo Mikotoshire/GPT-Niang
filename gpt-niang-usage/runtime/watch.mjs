@@ -1,3 +1,6 @@
+import {Rpc} from './learning-rpc.mjs';
+import {LearningController} from './learning-controller.mjs';
+import {Researcher} from './learning-research.mjs';
 import {appendDiagnostic} from './diagnostics.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,6 +23,10 @@ let refresh;
 const ipc=createPipeRefreshHandler(()=>{if(refresh)void refresh.request();});
 const lock=await acquireWorkerLock(config.dataDir,parentPid,{onLost:()=>process.exit(1),onConnection:ipc.onConnection});
 if(!lock)process.exit(0);
+const researcher=new Researcher(config.dataDir,()=>learning?.gate()??{on:false},args=>new Rpc(resolveCodexExecutable(config.codexPath),args));
+let learning;
+try{learning=new LearningController(config.dataDir,{owner:lock.owner.token,research:options=>researcher.research(options)});}catch{}
+function updateLearning(snapshot){try{learning?.tick(snapshot);}catch{try{void learning?.close();}catch{}researcher.close();}}
 let lastQueryFailed=false;
 appendDiagnostic(config.dataDir,{event:'worker_start'});
 const statusFile=path.join(config.dataDir,'status.json');
@@ -28,7 +35,7 @@ const handoffFile=handoffSupported?path.join(config.dataDir,'worker-handoff-'+lo
 let status=null,requestToken=readRefreshRequest(path.join(config.dataDir,'refresh.flag')),lastActivity=Date.now(),heartbeat;
 const activeRequestIds=new Set();
 const initialStop=readRefreshRequest(path.join(config.dataDir,'stop.flag'));
-const save=data=>{atomicJson(statusFile,data);status=data;};
+const save=data=>{atomicJson(statusFile,data);status=data;updateLearning(status);};
 const health=()=>atomicJson(healthFile,{...lock.owner,version:pluginVersion,...(handoffSupported?{handoffProtocol:1}:{}),at:Date.now(),busy:refresh.busy,lastRefresh:refresh.lastRefresh});
 function stopForOwner(request) {
   if(request===null)return false;
@@ -41,6 +48,7 @@ function stopForOwner(request) {
 }
 function exit() {
   clearInterval(heartbeat);
+  try{void learning?.close();}catch{}researcher.close();
   // This path belongs only to the exiting owner's token; general stop.flag stays intact.
   try{if(handoffFile)fs.unlinkSync(handoffFile);}catch{}
   try{if(readJson(healthFile)?.token===lock.owner.token)fs.unlinkSync(healthFile);}catch{}
@@ -95,6 +103,7 @@ heartbeat=setInterval(()=>{
   // Mac GUI startup opts in to inheriting old requests; other GUI callers retain their stop behavior.
   if((parentPid && (!processAlive(parentPid) || (!inheritStop && stopApplies))) || (stopApplies && stop!==initialStop))process.exit(0);
   if(handingOff){
+    try{void learning?.close();}catch{}researcher.close();
     if(!refresh.busy)process.exit(0);
     try{health();}catch{}
     return; // Finish the current query; leave new file requests for the next owner.
@@ -110,6 +119,7 @@ heartbeat=setInterval(()=>{
   if(requested)void refresh.request();
   else if(pending.some(request=>!activeRequestIds.has(request.id)) || (active && !refresh.busy && now-refresh.lastRefresh>=60000))void refresh.request();
   if(!parentPid && !active && !refresh.busy && pending.length===0 && ipc.pendingCount===0 && now-lastActivity>=30000)process.exit(0);
+  try{updateLearning(status);}catch{try{void learning?.close();}catch{}researcher.close();}
   cleanRefreshResults(config.dataDir,now);
   try{health();}catch{}
 },1000);

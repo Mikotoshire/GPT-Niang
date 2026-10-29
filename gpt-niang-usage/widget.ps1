@@ -6,6 +6,7 @@ if(!(Test-Path -LiteralPath $script:configPath)){throw 'Please run Install.ps1 f
 $script:config=Get-Content -LiteralPath $script:configPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $script:dataDir=$script:config.dataDir
 $null=New-Item -ItemType Directory -Path $script:dataDir -Force
+. ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path $script:appDir 'runtime\learning.ps1'),[Text.Encoding]::UTF8)))
 . (Join-Path $script:appDir 'runtime\quotes.ps1')
 . (Join-Path $script:appDir 'runtime\completion-notifications.ps1')
 . ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path $script:appDir 'runtime\ui-settings.ps1'),[Text.Encoding]::UTF8)))
@@ -1057,6 +1058,7 @@ function Publish-WidgetPresence([bool]$visible,[long]$now){
 Write-WidgetPresence @{visible=[bool]$visible;at=$now;host=$script:hostHandle.ToInt64();widget=$script:widgetHandle.ToInt64();pid=$PID;messageRouting=@{native=$script:messageRouter.Messages;script=$script:messageRouter.ScriptMessages};gravity=@{targetFps=$script:gravityTimer.TargetFps;renderFps=$script:gravityTimer.Fps;frameCount=$script:gravityTimer.FrameCount;maxStepMs=$script:gravityTimer.MaxStepMs;meanStepMs=$script:gravityTimer.MeanStepMs;enabled=$script:gravityEnabled;height=$script:gravity.Height;velocity=$script:gravity.Velocity;charge=$script:gravity.Charge;rebounds=$script:gravity.Rebounds;active=$script:gravity.Active};character=@{id=$script:characterId;name=$script:activeCharacter.name;galleryOpen=[bool]($script:characterGallery -and $script:characterGallery.IsVisible)};sound=(Get-WidgetAudioStatus);followHost=$script:followHost;follow=@{ready=$script:hostFollower.Ready;events=$script:hostFollower.MovementEvents;mode='native-immediate';animationPaddingDip=14};sizing=@{character=$script:scale;bubble=$script:bubbleScale;display=$script:displayScale;preview=[bool]$script:settingsSizePreview};autoQuotes=@{enabled=$script:autoQuoteEnabled;intervalSeconds=$script:autoQuoteIntervalSeconds;nextAt=$script:autoQuoteNextAt;displayCount=$script:autoQuoteDisplayCount};completion=(Get-CompletionNotificationStatus);recovery=@{checks=$script:occlusionRecovery.Checks;toggles=$script:occlusionRecovery.Toggles;pending=$script:occlusionRecovery.Pending;cloaked=$script:occlusionRecovery.OwnedCloak;failed=$script:occlusionRecovery.Failed;hresult=$script:occlusionRecovery.LastHresult};music=(Get-WidgetMusicStatus);scene=@{open=!$script:collapsed;mode=$script:bubbleMode;resetTimeMode=$script:resetTimeMode;startedAt=$script:sceneStartedAt;closesAt=$script:sceneDeadline;shortReset=$script:ui.ShortReset.Text;weekReset=$script:ui.WeekReset.Text}}
 }
 function Tick-Widget {
+  if($script:context.IsOpen -and (!$script:lastLearningMenuAt -or [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()-$script:lastLearningMenuAt-ge 1000)){Update-WidgetLearningMenu;$script:lastLearningMenuAt=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()}
   if($script:gravityTimer -and $script:gravityTimer.IsEnabled -and !(Test-WidgetGravityMotionSuspended)){Sync-WidgetGravityPosition}
   if($script:updating){return}
   $script:updating=$true

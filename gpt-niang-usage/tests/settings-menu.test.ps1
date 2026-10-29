@@ -6,6 +6,7 @@ $library=Join-Path $appDir 'runtime/vendor/aether/Aether.Physics2D.dll'
 Add-Type -Path $library
 Add-Type -Path (Join-Path $appDir 'runtime/gravity-model.cs') -ReferencedAssemblies $library
 $script:gravity=[GptGravityModel]::new()
+. ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path $appDir 'runtime\learning.ps1'),[Text.Encoding]::UTF8)))
 . ([ScriptBlock]::Create([IO.File]::ReadAllText((Join-Path $appDir 'runtime\ui-settings.ps1'),[Text.Encoding]::UTF8)))
 . (Join-Path $appDir 'runtime\quotes.ps1')
 . (Join-Path $appDir 'runtime\audio.ps1')
@@ -199,8 +200,11 @@ try{
   Assert-Equal $script:settingsMenuUi.MusicEnabled.IsChecked $false 'Music capture starts only after an explicit enable'
   Assert-Equal $script:settingsMenuUi.MusicEnabled.Items.Count 0 'Music is one direct toggle without a second mode'
   Assert-Equal ($null-eq $script:settingsMenuUi.MusicColor) $true 'Music color has no separate toggle'
-  $expected=@('查看额度','刷新额度','换一句台词','更换形象','外观设置','重力与弹性','声音与点击','编辑我的语录','音乐律动','音乐设置','自动语录','回答结束提醒','显示与位置','更新','退出 GPT 娘')
-  $actual=@($script:context.Items|Where-Object{$_.Header-is [string]}|ForEach-Object{$_.Header})
+  Assert-Equal $script:settingsMenuUi.Learning.IsCheckable $true 'Learning is a direct checkable action'
+  Assert-Equal $script:settingsMenuUi.Learning.IsChecked $false 'Learning defaults OFF without a worker'
+  Assert-Equal $script:settingsMenuUi.LearningStatus.IsEnabled $false 'Learning status is passive'
+  $expected=@('查看额度','刷新额度','换一句台词','更换形象','外观设置','重力与弹性','声音与点击','编辑我的语录','音乐律动','音乐设置','自动语录','回答结束提醒','显示与位置','余量学习（本轮额度）','已关闭（后台未就绪）','更新','退出 GPT 娘')
+  $actual=@($script:context.Items|Where-Object{$_.Header-is [string] -or $_-eq $script:settingsMenuUi.Learning}|ForEach-Object{if($_-eq $script:settingsMenuUi.Learning){$_.Header.Children[0].Text}else{$_.Header}})
   Assert-Equal ($actual-join '|') ($expected-join '|') 'Menu entries and removed title block'
   Assert-Equal $script:settingsMenuUi.Completion.IsChecked $false 'Reply reminders default off'
   Assert-Equal $script:settingsMenuUi.Completion.StaysOpenOnClick $true 'Reply reminder toggle retains menu interaction'

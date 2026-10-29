@@ -1,5 +1,9 @@
 [
   "widget.ps1",
+  "runtime/learning.ps1",
+  "runtime/learning-controller.mjs",
+  "runtime/learning-research.mjs",
+  "runtime/learning-rpc.mjs",
   "widget.xaml",
   "launch.vbs",
   "supervisor.vbs",

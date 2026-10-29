@@ -44,3 +44,6 @@ Thumbs.db
 
 # Local-only installer verification summary
 **/installation-verification.json
+
+# Private spare-quota learning state and research notes
+**/learning/
