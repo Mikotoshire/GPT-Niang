@@ -47,13 +47,19 @@ public static class GptWidgetHostReadiness {
 '@ -ReferencedAssemblies ([Windows.Automation.AutomationElement].Assembly.Location),([Windows.Automation.ControlType].Assembly.Location),([Windows.Point].Assembly.Location)
 }
 function New-WidgetReadinessState {
-  return [pscustomobject]@{host=[IntPtr]::Zero;ready=$false;candidate=$false;lastProbe=-1000L;desktopStarted=$false}
+  return [pscustomobject]@{host=[IntPtr]::Zero;ready=$false;candidate=$false;lastProbe=-1000L;visibleSince=-1L;desktopStarted=$false}
 }
 function Test-WidgetHostReady {
-  param($State,[IntPtr]$HostHandle,[long]$Now,[scriptblock]$Probe={param($h)[GptWidgetHostReadiness]::Poll($h)})
-  if($State.host-ne $HostHandle){$State.host=$HostHandle;$State.ready=$false;$State.candidate=$false;$State.lastProbe=$Now-1000}
+  param($State,[IntPtr]$HostHandle,[long]$Now,[scriptblock]$Probe={param($h)[GptWidgetHostReadiness]::Poll($h)},[bool]$Visible=$false,[bool]$FrameValid=$false)
+  if($State.host-ne $HostHandle){$State.host=$HostHandle;$State.ready=$false;$State.candidate=$false;$State.lastProbe=$Now-1000;$State.visibleSince=-1L}
+  # AI-generated recovery; insufficiently validated. See AI-NOTICE.md.
+  # User-selected fallback: accessibility may remain unavailable in Chromium.
+  # Count only continuous visibility of the same non-minimized, valid host.
+  if($HostHandle-eq [IntPtr]::Zero -or !$Visible -or !$FrameValid){$State.visibleSince=-1L}
+  elseif($State.visibleSince-lt 0){$State.visibleSince=$Now}
   if($HostHandle-eq [IntPtr]::Zero){return $false}
   if($State.ready){return $true}
+  if($State.visibleSince-ge 0 -and $Now-$State.visibleSince-ge 2000){$State.ready=$true;return $true}
   if($Now-$State.lastProbe-lt 1000){return $false}
   $State.lastProbe=$Now
   $hasInterface=[bool](& $Probe $HostHandle)

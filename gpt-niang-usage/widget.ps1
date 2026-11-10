@@ -1086,11 +1086,17 @@ function Tick-Widget {
     elseif($script:hostHandle-eq [IntPtr]::Zero -or ![GptWidgetNative]::IsWindow($script:hostHandle)){$script:hostHandle=[IntPtr]::Zero;$script:lastHostProbe=0;$script:lastPosition=$null}
   }
   if($script:hostHandle-eq [IntPtr]::Zero -and $now-$script:lastHostProbe-gt 1000){$script:hostHandle=[GptWidgetNative]::FindCodex();$script:lastHostProbe=$now}
-  $hostVisible=$script:hostHandle-ne [IntPtr]::Zero -and [GptWidgetZOrderNative]::VisibleSurface($script:hostHandle) -and ![GptWidgetNative]::IsIconic($script:hostHandle)
-  $hostReady=Test-WidgetHostReady $script:hostReadiness $script:hostHandle $now
+  $hostVisible=$script:hostHandle-ne [IntPtr]::Zero -and [GptWidgetNative]::IsWindow($script:hostHandle) -and [GptWidgetZOrderNative]::VisibleSurface($script:hostHandle) -and ![GptWidgetNative]::IsIconic($script:hostHandle)
+  $readinessFrame=$null;$readinessFrameValid=$false
+  if($hostVisible -and (!$script:hostReadiness.ready -or $script:hostReadiness.host-ne $script:hostHandle)){
+    $readinessFrame=[GptWidgetNative]::Frame($script:hostHandle)
+    $hostDpi=[Math]::Max(1,[GptWidgetNative]::GetDpiForWindow($script:hostHandle)/96.0)
+    $readinessFrameValid=Test-WidgetPlacementFrame $readinessFrame $hostDpi
+  }
+  $hostReady=Test-WidgetHostReady $script:hostReadiness $script:hostHandle $now -Visible $hostVisible -FrameValid $readinessFrameValid
   if(!$script:followHost -and !$script:hostReadiness.desktopStarted -and ($script:hostHandle-eq [IntPtr]::Zero -or ($hostVisible -and $hostReady))){$script:hostReadiness.desktopStarted=$true}
   $visible=if($script:followHost){$hostVisible -and $hostReady}else{$script:hostReadiness.desktopStarted}
-  $placementFrame=if($visible){Get-WidgetPlacementFrame}else{$null}
+  $placementFrame=if($visible){if($script:followHost -and $null-ne $readinessFrame){$readinessFrame}else{Get-WidgetPlacementFrame}}else{$null}
   $placementDpi=if($visible){Get-WidgetPlacementDpi}else{1}
   $visible=$visible -and (Test-WidgetPlacementFrame $placementFrame $placementDpi)
   if($visible){
