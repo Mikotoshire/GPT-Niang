@@ -31,7 +31,10 @@ using System;
 public static class GptWidgetNative {
  public struct Point {public int X,Y;}
  public struct Rect {public int Left,Top,Right,Bottom;}
- public static Rect Frame(IntPtr h){return new Rect{Left=0,Top=0,Right=8000,Bottom=6000};}
+ public static int HostWidth=8000,HostHeight=6000;
+ public static uint HostDpi=96;
+ public static Rect Frame(IntPtr h){return new Rect{Left=0,Top=0,Right=HostWidth,Bottom=HostHeight};}
+ public static uint GetDpiForWindow(IntPtr h){return HostDpi;}
  public static int X,Y,Width,Height,Calls;public static uint Flags;
  public static bool GetCursorPos(out Point point){point=new Point{X=X,Y=Y};return true;}
  public static bool SetWindowPos(IntPtr h,IntPtr after,int x,int y,int width,int height,uint flags){Width=width;Height=height;Flags=flags;Calls++;return true;}
@@ -42,7 +45,7 @@ public static class GptWidgetNative {
 }
 public static class GptWidgetZOrderNative {public static bool VisibleSurface(IntPtr h){return true;}}
 '@
-function Get-WidgetPlacementFrame {return [pscustomobject]@{Left=0;Top=0;Right=$script:frameWidth;Bottom=$script:frameHeight}}
+function Get-WidgetPlacementFrame {return [GptWidgetNative]::Frame($script:hostHandle)}
 function Get-WidgetPlacementDpi {return $script:testDpi}
 function Set-Facing {}
 # Actual physical sizing is exercised against real HWNDs by display/size tests.
@@ -81,10 +84,11 @@ $script:lastForeground=[IntPtr](1);$script:attachedHost=[IntPtr](1)
 $script:lastPresence=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()+3600000
 $script:dataDir=$TestRoot
 $cases=0
-$script:frameWidth=8000;$script:frameHeight=6000
+[GptWidgetNative]::HostWidth=8000;[GptWidgetNative]::HostHeight=6000
 foreach($follow in @($true,$false)){
   foreach($dpi in @(1.0,1.5,2.0)){
     $script:testDpi=$dpi;$script:followHost=$follow
+    [GptWidgetNative]::HostDpi=[uint32](96*$dpi)
     $script:window=[pscustomobject]@{Width=378;Height=378;IsVisible=$true}
     $script:scale=1.0;$script:displayScale=1.0
     $script:offsetLeft=20;$script:offsetRight=0;$script:offsetBottom=0;$script:anchor='free'
@@ -112,15 +116,16 @@ foreach($follow in @($true,$false)){
 }
 Write-Output ('PASS: '+$cases+' host/desktop DPI cases preserve 100% size through 20 drags and 20 placement ticks each')
 $script:followHost=$true;$script:testDpi=1.25
+[GptWidgetNative]::HostDpi=120
 $script:window|Add-Member ScriptMethod Hide {$this.IsVisible=$false}
 $script:window|Add-Member ScriptMethod Show {$this.IsVisible=$true}
-$script:frameWidth=2;$script:frameHeight=2
+[GptWidgetNative]::HostWidth=2;[GptWidgetNative]::HostHeight=2
 $script:lastPosition=$null
 Tick-Widget
 if($script:window.IsVisible){throw 'Transient 2x2 host frame was treated as usable'}
 Assert-SizeAfterNativeMove 'transient 2x2 host'
 if($script:displayScale-ne 1){throw 'Transient host frame changed saved display scale'}
-$script:frameWidth=8000;$script:frameHeight=6000
+[GptWidgetNative]::HostWidth=8000;[GptWidgetNative]::HostHeight=6000
 Tick-Widget
 if(!$script:window.IsVisible){throw 'Widget did not recover after valid host frame returned'}
 Assert-SizeAfterNativeMove 'host restart recovery'
